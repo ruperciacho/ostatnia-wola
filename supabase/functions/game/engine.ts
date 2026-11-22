@@ -585,7 +585,8 @@ function finish(g: Game, winner: 'rodzina' | 'zabojcy', reason: string, ctx: Ctx
   if (worker) titles.push({ title: 'Dziedzic pracowitości', playerId: worker.id, why: plural(worker.stats.tasks, 'udane zadanie', 'udane zadania', 'udanych zadań') });
   const suspect = best(g.players.filter((p) => p.role !== 'zabojca'), (p) => p.stats.votesReceived);
   if (suspect) titles.push({ title: 'Najbardziej podejrzany niewinny', playerId: suspect.id, why: `${plural(suspect.stats.votesReceived, 'głos', 'głosy', 'głosów')} przeciw sobie` });
-  const killers = g.players.filter((p) => p.role === 'zabojca');
+  // Kamienna twarz tylko dla zabójcy, którego nie złapano
+  const killers = g.players.filter((p) => p.role === 'zabojca' && p.status !== 'arrested');
   if (killers.length) {
     const stone = killers.reduce((a, b) => (b.stats.votesReceived < a.stats.votesReceived ? b : a));
     titles.push({ title: 'Kamienna twarz', playerId: stone.id, why: stone.stats.votesReceived === 0 ? 'ani jednego głosu przeciw sobie' : `tylko ${plural(stone.stats.votesReceived, 'głos', 'głosy', 'głosów')} przeciw sobie` });
