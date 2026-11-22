@@ -1,21 +1,22 @@
 # Ostatnia wola
 
-Imprezowa gra detektywistyczna: wspólny ekran (TV, laptop, tablet) pokazuje narrację i dowody, a gracze dołączają telefonami przez kod QR i dostają tajne role oraz zadania.
+Imprezowa gra detektywistyczna dla 3–12 osób: wspólny ekran (TV, laptop, tablet) pokazuje narrację, tablicę dowodów i wyniki, a gracze dołączają telefonami przez kod QR i dostają tajne role, postacie, zadania i poszlaki.
 
-## Etap 1: test sprzętu
+**Graj:** https://ruperciacho.github.io/ostatnia-wola/ — otwórz na wspólnym ekranie, telefony skanują kod QR.
 
-`index.html` to strona testowa, która sprawdza, czy ekran i telefony dadzą radę:
+## Jak to działa
 
-- **Ekran:** kod pokoju, kod QR, lista graczy z pingiem, przycisk Start (odblokowuje dźwięk), muzyka, licznik 60 s, diagnostyka przeglądarki.
-- **Telefon** (`?p=KOD`): dołączanie z imieniem, licznik zsynchronizowany z ekranem, przycisk „Pomachaj do ekranu”, Wake Lock, powrót do pokoju po odświeżeniu.
+- `index.html` — cała strona (ekran i telefon), budowana z `src/` przez `build.py`, serwowana przez GitHub Pages.
+- `supabase/functions/game/` — Edge Function `game` z silnikiem gry (`engine.ts`), scenariuszem (`data.ts`) i obsługą zapytań (`index.ts`). Stan gry trzyma tabela `games`; klienci nie mają do niej dostępu, każdy dostaje od funkcji tylko swój widok.
+- Realtime Broadcast (`ow:KOD`) tylko powiadamia o zmianie wersji; sekrety nigdy nie idą kanałem.
 
-Komunikacja idzie przez Supabase Realtime (Broadcast + Presence) w projekcie `ostatnia-wola`.
-
-## Budowanie
+## Rozwój
 
 ```
-npm install
-npm run build
+npm install          # biblioteki wklejane do strony
+npm run build        # buduje index.html
+npm test             # tysiące symulowanych partii + sprawdzenie, że widoki nie zdradzają sekretów
+npm run mock         # lokalna atrapa funkcji na porcie 8790 (ten sam silnik)
 ```
 
-`build.py` wkleja bibliotekę Supabase, generator QR i `src/app.js` do szablonu `src/template.html` i zapisuje jeden samodzielny plik `index.html` (serwowany przez GitHub Pages).
+Wdrożenie funkcji: `supabase functions deploy game --no-verify-jwt` (funkcja sama sprawdza tokeny graczy).

@@ -4,187 +4,184 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#120d0c">
-<title>Ostatnia wola · test sprzętu</title>
+<title>Ostatnia wola</title>
 <style>
   :root {
-    --bg: #120d0c;
-    --panel: #1d1614;
-    --panel-2: #261d1a;
-    --line: #3a2d28;
-    --ink: #f3e9dc;
-    --muted: #b8a898;
-    --gold: #d9a94e;
-    --good: #7cc48a;
-    --mid: #e2c25a;
-    --bad: #e2766a;
+    --bg: #120d0c; --panel: #1d1614; --panel-2: #271e1b; --line: #3a2d28;
+    --ink: #f3e9dc; --muted: #b8a898; --gold: #d9a94e;
+    --good: #7cc48a; --mid: #e2c25a; --bad: #e2766a; --ghost: #9fb3d9;
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; }
+  html, body { margin: 0; min-height: 100%; }
   body {
-    background: radial-gradient(ellipse at 50% 0%, #2a1c18 0%, var(--bg) 60%);
-    color: var(--ink);
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: radial-gradient(ellipse at 50% 0%, #2a1c18 0%, var(--bg) 60%) fixed;
+    color: var(--ink); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
   }
   [hidden] { display: none !important; }
-  h1, h2, .title { font-family: Georgia, "Times New Roman", serif; font-weight: normal; letter-spacing: .02em; }
+  .serif { font-family: Georgia, "Times New Roman", serif; font-weight: normal; }
+  h1, h2, h3 { font-family: Georgia, "Times New Roman", serif; font-weight: normal; margin: 0; }
+  p { margin: 0; }
   button {
     font: inherit; color: var(--bg); background: var(--gold); border: 0; border-radius: .5em;
-    padding: .6em 1.1em; cursor: pointer;
+    padding: .65em 1.1em; cursor: pointer; touch-action: manipulation;
   }
   button.secondary { background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); }
-  button:disabled { opacity: .5; }
+  button.chosen { background: var(--gold); color: var(--bg); border-color: var(--gold); }
+  button:disabled { opacity: .45; cursor: default; }
   button:focus, input:focus { outline: 4px solid var(--gold); outline-offset: 3px; }
-  .chip { display: inline-block; padding: .25em .7em; border-radius: 99em; font-size: .8em; border: 1px solid var(--line); }
-  .chip.ok { color: var(--good); border-color: var(--good); }
-  .chip.warn { color: var(--mid); border-color: var(--mid); }
-  .diag { list-style: none; margin: 0; padding: 0; font-size: .75em; color: var(--muted); }
-  .diag li { display: flex; justify-content: space-between; gap: 1em; padding: .2em 0; border-bottom: 1px solid var(--line); }
-  .diag .good { color: var(--good); }
-  .diag .bad { color: var(--bad); }
-  .diag li.ua { display: block; font-size: .85em; word-break: break-all; border: 0; padding-top: .5em; }
-
-  /* ---------- screen ---------- */
-  .mode-screen { font-size: clamp(15px, 1.45vw, 40px); overflow: hidden; }
-  #screen { height: 100vh; display: grid; grid-template-columns: 1fr 1.15fr; gap: 2.2vw; padding: 3vw 3.5vw; }
-  .join-col { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 1em; }
-  .title { font-size: 2.6em; color: var(--gold); margin: 0; line-height: 1.1; }
-  .subtitle { color: var(--muted); margin: 0; }
-  #qr { width: min(26vw, 46vh); background: #fff; border-radius: .6em; padding: .6em; }
-  #qr svg { display: block; width: 100%; height: auto; }
-  .code-label { color: var(--muted); font-size: .9em; margin: 0; }
-  #room-code { font-family: Georgia, serif; font-size: 3.4em; letter-spacing: .25em; color: var(--ink); margin: 0; line-height: 1; padding-left: .25em; }
-  #join-url { color: var(--muted); font-size: .8em; word-break: break-all; }
-  .game-col { display: flex; flex-direction: column; gap: 1.2em; min-height: 0; }
-  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: .8em; padding: 1em 1.2em; }
-  .panel h2 { margin: 0 0 .5em; font-size: 1.3em; color: var(--gold); }
-  .players-panel { flex: 1; min-height: 0; overflow: hidden; }
-  #players { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: .5em; }
-  #players li { background: var(--panel-2); border-radius: .5em; padding: .5em .8em; display: flex; justify-content: space-between; gap: .5em; }
-  #players li.empty { grid-column: 1 / -1; background: none; color: var(--muted); }
-  #players li.waving { background: var(--gold); color: var(--bg); }
-  .player-rtt { font-size: .8em; color: var(--muted); align-self: center; }
-  .player-rtt.good { color: var(--good); } .player-rtt.mid { color: var(--mid); } .player-rtt.bad { color: var(--bad); }
-  #players li.waving .player-rtt { color: var(--bg); }
-  .timer-panel { display: flex; align-items: center; justify-content: space-between; gap: 1em; }
-  #timer-label { color: var(--muted); margin: 0; }
-  .timer { font-family: Georgia, serif; font-size: 3.6em; line-height: 1; font-variant-numeric: tabular-nums; }
+  .muted { color: var(--muted); }
+  .gold { color: var(--gold); }
+  .chip { display: inline-block; padding: .15em .6em; border-radius: 99em; font-size: .8em; border: 1px solid var(--line); color: var(--muted); }
+  .chip.dead { color: var(--ghost); border-color: var(--ghost); }
+  .chip.arrested { color: var(--bad); border-color: var(--bad); }
+  .chip.ready { color: var(--good); border-color: var(--good); }
+  .stack { display: flex; flex-direction: column; gap: .8em; }
+  .row { display: flex; gap: .6em; flex-wrap: wrap; align-items: center; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: .6em; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: .8em; padding: 1em 1.1em; }
+  .timer { font-family: Georgia, serif; font-variant-numeric: tabular-nums; }
   .timer.urgent { color: var(--bad); }
-  .controls { display: flex; flex-wrap: wrap; gap: .6em; }
-  .screen-footer { display: flex; gap: 1.2em; align-items: flex-start; }
-  .screen-footer .diag { flex: 1; font-size: .6em; }
-  #start-overlay {
-    position: fixed; inset: 0; background: rgba(10, 7, 6, .88); display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 1.2em; text-align: center; z-index: 10; padding: 2em;
-  }
-  #start-overlay p { color: var(--muted); max-width: 34em; margin: 0; }
-  #btn-start { font-size: 1.6em; padding: .6em 2em; }
   .toast {
-    position: fixed; left: 50%; bottom: 6vh; transform: translateX(-50%) translateY(150%);
-    background: var(--gold); color: var(--bg); padding: .7em 1.4em; border-radius: .6em; font-size: 1.4em;
-    transition: transform .3s ease, opacity .3s ease; z-index: 20; opacity: 0; visibility: hidden;
+    position: fixed; left: 50%; bottom: 5vh; transform: translateX(-50%); max-width: 90vw;
+    background: var(--bad); color: #fff; padding: .7em 1.2em; border-radius: .6em; z-index: 50;
+    opacity: 0; visibility: hidden; transition: opacity .3s ease;
   }
-  .toast.visible { transform: translateX(-50%) translateY(0); opacity: 1; visibility: visible; }
+  .toast.visible { opacity: 1; visibility: visible; }
+  .clue { border-left: 3px solid var(--gold); padding: .3em .7em; }
+  .clue.ghosts { border-color: var(--ghost); }
+  .clue .when { color: var(--muted); font-size: .8em; }
+  .card-char h3 { font-size: 1.05em; color: var(--gold); }
+  .attrs { display: flex; gap: .35em; flex-wrap: wrap; margin-top: .3em; }
+  .attrs span { font-size: .78em; background: var(--panel-2); border-radius: .4em; padding: .1em .45em; }
 
-  /* ---------- phone & landing ---------- */
+  /* ---------- ekran wspólny ---------- */
+  .mode-screen { font-size: clamp(15px, 1.4vw, 40px); }
+  #screen { min-height: 100vh; display: flex; flex-direction: column; padding: 2vw 3vw; gap: 1.5vw; }
+  .s-head { display: flex; justify-content: space-between; align-items: center; gap: 1em; }
+  .s-head .title { font-size: 1.8em; color: var(--gold); }
+  .s-phase { text-align: right; }
+  .s-phase .label { font-size: 1.1em; color: var(--muted); }
+  .s-phase .timer { font-size: 2.6em; line-height: 1; }
+  .s-body { flex: 1; display: grid; grid-template-columns: 1fr 22em; gap: 2vw; min-height: 0; }
+  .s-main { min-height: 0; }
+  .s-side { min-height: 0; }
+  .s-side ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .4em; }
+  .s-side li { display: flex; justify-content: space-between; gap: .5em; background: var(--panel); border-radius: .5em; padding: .4em .7em; }
+  .s-side li .sub { font-size: .75em; color: var(--muted); }
+  .lobby-grid { display: grid; grid-template-columns: auto 1fr; gap: 3vw; align-items: center; }
+  #qr { width: min(24vw, 44vh); background: #fff; border-radius: .6em; padding: .6em; }
+  #qr svg { display: block; width: 100%; height: auto; }
+  .room-code { font-family: Georgia, serif; font-size: 4em; letter-spacing: .25em; line-height: 1; }
+  .big-text { font-size: 1.35em; line-height: 1.5; }
+  .huge { font-size: 2.4em; line-height: 1.2; }
+  .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(13em, 1fr)); gap: .7em; }
+  .gallery .panel { padding: .7em .8em; }
+  .board { display: grid; grid-template-columns: 1.1fr 1fr; gap: 1.5vw; }
+  .rank { width: 100%; border-collapse: collapse; }
+  .rank td, .rank th { text-align: left; padding: .3em .5em; border-bottom: 1px solid var(--line); }
+  .rank th { color: var(--muted); font-weight: normal; font-size: .85em; }
+  .recon { font-size: .7em; color: var(--muted); }
+  .recon-cols { columns: 2; column-gap: 2em; }
+  .recon-cols p { break-inside: avoid; margin-bottom: .5em; }
+  .mini-gallery { display: grid; grid-template-columns: 1fr 1fr; gap: .5em; align-content: start; font-size: .8em; }
+  .mini-gallery .panel { padding: .5em .7em; }
+  .mini-gallery.wide { grid-template-columns: repeat(4, 1fr); }
+  .rank { font-size: .85em; }
+  .recon b { color: var(--ink); font-weight: normal; }
+  #start-overlay {
+    position: fixed; inset: 0; background: rgba(10, 7, 6, .9); display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 1.2em; text-align: center; z-index: 40; padding: 2em;
+  }
+  #start-overlay p { color: var(--muted); max-width: 34em; }
+  #btn-start { font-size: 1.6em; padding: .6em 2.2em; }
+  .s-foot { display: flex; justify-content: space-between; align-items: center; font-size: .7em; color: var(--muted); }
+  .s-foot button { font-size: 1em; padding: .4em .8em; }
+
+  /* ---------- telefon ---------- */
   .mode-phone, .mode-landing { font-size: 17px; }
-  .phone-wrap { max-width: 30em; margin: 0 auto; padding: 1.5em 1.2em 3em; display: flex; flex-direction: column; gap: 1.1em; }
-  .phone-wrap .title { font-size: 2em; }
-  .phone-wrap form { display: flex; flex-direction: column; gap: .7em; }
-  .phone-wrap label { color: var(--muted); }
+  .phone-wrap { max-width: 32em; margin: 0 auto; padding: 1em 1em 6em; display: flex; flex-direction: column; gap: 1em; }
+  .p-head { display: flex; justify-content: space-between; align-items: center; gap: .6em; }
+  .p-head .title { font-size: 1.3em; color: var(--gold); }
+  .p-head .timer { font-size: 1.6em; }
   .phone-wrap input {
-    font: inherit; font-size: 1.2em; padding: .6em .8em; border-radius: .5em; border: 1px solid var(--line);
-    background: var(--panel-2); color: var(--ink);
+    font: inherit; font-size: 1.15em; padding: .6em .8em; border-radius: .5em; border: 1px solid var(--line);
+    background: var(--panel-2); color: var(--ink); width: 100%;
   }
-  #code-input { text-transform: uppercase; letter-spacing: .3em; text-align: center; }
-  .big-btn { font-size: 1.2em; padding: .8em; width: 100%; }
-  .note { color: var(--muted); font-size: .9em; margin: 0; }
-  .error { color: var(--bad); margin: 0; }
-  #phone-timer { font-family: Georgia, serif; font-size: 4em; text-align: center; line-height: 1; font-variant-numeric: tabular-nums; }
-  .signal { text-align: center; margin: 0; font-size: .9em; }
-  .signal.ok { color: var(--good); } .signal.warn { color: var(--mid); }
-
-  @media (max-aspect-ratio: 4/3) {
-    .mode-screen { overflow: auto; }
-    #screen { height: auto; min-height: 100vh; grid-template-columns: 1fr; }
-    #qr { width: min(60vw, 40vh); }
-  }
+  .big-btn { font-size: 1.15em; padding: .85em; width: 100%; }
+  .choice-list { display: flex; flex-direction: column; gap: .45em; }
+  .choice-list button { text-align: left; }
+  .tabs { position: fixed; left: 0; right: 0; bottom: 0; display: flex; background: var(--panel); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
+  .tabs button { flex: 1; border-radius: 0; background: none; color: var(--muted); padding: .9em .2em; }
+  .tabs button.on { color: var(--gold); }
+  .reveal { background: var(--panel-2); border: 1px dashed var(--gold); border-radius: .8em; padding: 1.2em; text-align: center; user-select: none; -webkit-user-select: none; touch-action: none; }
+  .reveal .hidden-part { display: none; text-align: left; }
+  .reveal.open .hidden-part { display: block; }
+  .reveal.open .hint { display: none; }
+  .note { border-left: 3px solid var(--gold); padding: .25em .7em; }
+  .note.info { border-color: var(--line); color: var(--muted); }
+  .note .when { font-size: .8em; color: var(--muted); }
+  .game-box { background: var(--panel); border: 1px solid var(--line); border-radius: .8em; padding: 1em; display: flex; flex-direction: column; gap: .8em; }
+  .game-items { display: grid; grid-template-columns: 1fr 1fr; gap: .5em; }
+  .game-items button { padding: .9em .4em; }
+  .game-items button.done { background: var(--good); color: var(--bg); }
+  .game-items button.wrong { background: var(--bad); color: #fff; }
+  .bar { position: relative; height: 3em; background: var(--panel-2); border-radius: .5em; overflow: hidden; }
+  .bar .zone { position: absolute; top: 0; bottom: 0; background: rgba(124, 196, 138, .35); border-left: 2px solid var(--good); border-right: 2px solid var(--good); }
+  .bar .marker { position: absolute; top: 0; bottom: 0; width: 6px; margin-left: -3px; background: var(--gold); }
+  .hits { font-size: 1.4em; letter-spacing: .3em; }
+  .center { text-align: center; }
 </style>
 </head>
 <body>
 
 <!-- ===== Ekran wspólny ===== -->
 <main id="screen" hidden>
-  <section class="join-col">
+  <header class="s-head">
     <h1 class="title">Ostatnia wola</h1>
-    <p class="subtitle">Test sprzętu: ekran, telefony, dźwięk, licznik</p>
-    <div id="qr" aria-label="Kod QR do dołączenia"></div>
-    <p class="code-label">albo wpisz kod pokoju</p>
-    <p id="room-code">····</p>
-    <span id="join-url"></span>
+    <div class="s-phase"><div id="s-label" class="label"></div><div id="s-timer" class="timer js-timer"></div></div>
+  </header>
+  <section class="s-body">
+    <div id="s-main" class="s-main"></div>
+    <aside class="s-side"><div class="panel"><h2 class="gold" style="font-size:1.1em;margin-bottom:.5em">Przy stole</h2><ul id="s-players"></ul></div></aside>
   </section>
-  <section class="game-col">
-    <div class="panel players-panel">
-      <h2>Gracze: <span id="player-count">0</span></h2>
-      <ul id="players"></ul>
-    </div>
-    <div class="panel timer-panel">
-      <div>
-        <p id="timer-label">Test licznika (opcjonalny, nie blokuje dołączania)</p>
-        <div id="timer" class="timer">–:––</div>
-      </div>
-      <span id="screen-status" class="chip warn">Realtime: łączenie…</span>
-    </div>
-    <div class="controls">
-      <button id="btn-timer" class="secondary">Test licznika 60 s</button>
-      <button id="btn-music" class="secondary">Muzyka: wł.</button>
-      <button id="btn-fullscreen" class="secondary">Pełny ekran</button>
-      <button id="btn-new-room" class="secondary">Nowy pokój</button>
-    </div>
-    <div class="screen-footer">
-      <ul id="screen-diag" class="diag"></ul>
-    </div>
-  </section>
+  <footer class="s-foot"><span id="s-status"></span><span><button id="btn-music" class="secondary">Muzyka</button> <button id="btn-new-room" class="secondary">Nowy pokój</button></span></footer>
   <div id="start-overlay">
-    <h1 class="title">Ostatnia wola</h1>
-    <p>Kliknij Start pilotem albo myszką, żeby odblokować dźwięk. Potem dołączajcie telefonami przez kod QR, bez limitu czasu.</p>
+    <h1 class="serif gold" style="font-size:3em">Ostatnia wola</h1>
+    <p>Kliknij OK na pilocie albo Start myszką, żeby włączyć dźwięk. Grę ustawia i startuje host z telefonu.</p>
     <button id="btn-start">Start</button>
   </div>
-  <div id="toast" class="toast"></div>
 </main>
 
 <!-- ===== Telefon gracza ===== -->
 <main id="phone" class="phone-wrap" hidden>
-  <h1 class="title">Ostatnia wola</h1>
-  <p class="note">Pokój <strong id="phone-code"></strong> · test sprzętu</p>
-  <span id="phone-status" class="chip warn">Realtime: łączenie…</span>
-  <form id="join-form">
-    <label for="name-input">Jak masz na imię?</label>
-    <input id="name-input" maxlength="16" autocomplete="nickname" placeholder="np. Ania">
-    <button class="big-btn" type="submit">Dołącz</button>
-  </form>
-  <section id="phone-game" hidden>
-    <p class="note">Grasz jako <strong id="player-name"></strong></p>
-    <p id="rejoin-note" class="note" hidden>Wróciłeś do pokoju po odświeżeniu strony.</p>
-    <div id="phone-timer">–:––</div>
-    <p id="signal" class="signal warn">Czekam na sygnał z ekranu gry…</p>
-    <p><button id="btn-wave" class="big-btn">Pomachaj do ekranu</button></p>
-  </section>
-  <ul id="phone-diag" class="diag"></ul>
+  <header class="p-head">
+    <div><div class="title serif">Ostatnia wola</div><div id="p-sub" class="muted" style="font-size:.85em"></div></div>
+    <div class="center"><div id="p-label" class="muted" style="font-size:.8em"></div><div id="p-timer" class="timer js-timer"></div></div>
+  </header>
+  <section id="p-now" class="stack"></section>
+  <section id="p-notes" class="stack" hidden></section>
+  <section id="p-char" class="stack" hidden></section>
+  <nav id="p-tabs" class="tabs" hidden>
+    <button data-tab="p-now" class="on">Teraz</button>
+    <button data-tab="p-notes">Notes</button>
+    <button data-tab="p-char">Postać</button>
+  </nav>
 </main>
 
 <!-- ===== Telefon bez kodu ===== -->
 <main id="landing" class="phone-wrap" hidden>
-  <h1 class="title">Ostatnia wola</h1>
-  <form id="code-form">
-    <label for="code-input">Wpisz kod pokoju z ekranu gry</label>
-    <input id="code-input" maxlength="4" autocomplete="off" placeholder="ABCD">
-    <p id="code-error" class="error" hidden>Kod ma 4 litery.</p>
+  <h1 class="serif gold" style="font-size:2em">Ostatnia wola</h1>
+  <form id="code-form" class="stack">
+    <label for="code-input" class="muted">Wpisz kod pokoju z ekranu gry</label>
+    <input id="code-input" maxlength="4" autocomplete="off" placeholder="ABCD" style="text-transform:uppercase;letter-spacing:.3em;text-align:center">
     <button class="big-btn" type="submit">Dołącz</button>
   </form>
-  <p class="note">Ten telefon ma być ekranem gry?</p>
+  <p class="muted">Ten telefon albo tablet ma być ekranem gry?</p>
   <button id="btn-be-screen" class="secondary big-btn">Użyj jako ekranu</button>
 </main>
+
+<div id="toast" class="toast"></div>
 
 <script>/*__SUPABASE__*/</script>
 <script>/*__QRCODE__*/</script>
