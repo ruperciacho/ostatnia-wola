@@ -1,0 +1,12 @@
+{
+  "name": "ostatnia-wola",
+  "private": true,
+  "description": "Ostatnia wola – imprezowa gra detektywistyczna (wspólny ekran + telefony)",
+  "scripts": {
+    "build": "python3 build.py"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.119.2",
+    "qrcode-generator": "2.0.4"
+  }
+}

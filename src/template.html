@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#120d0c">
+<title>Ostatnia wola · test sprzętu</title>
+<style>
+  :root {
+    --bg: #120d0c;
+    --panel: #1d1614;
+    --panel-2: #261d1a;
+    --line: #3a2d28;
+    --ink: #f3e9dc;
+    --muted: #b8a898;
+    --gold: #d9a94e;
+    --good: #7cc48a;
+    --mid: #e2c25a;
+    --bad: #e2766a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: radial-gradient(ellipse at 50% 0%, #2a1c18 0%, var(--bg) 60%);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  [hidden] { display: none !important; }
+  h1, h2, .title { font-family: Georgia, "Times New Roman", serif; font-weight: normal; letter-spacing: .02em; }
+  button {
+    font: inherit; color: var(--bg); background: var(--gold); border: 0; border-radius: .5em;
+    padding: .6em 1.1em; cursor: pointer;
+  }
+  button.secondary { background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); }
+  button:disabled { opacity: .5; }
+  button:focus, input:focus { outline: 4px solid var(--gold); outline-offset: 3px; }
+  .chip { display: inline-block; padding: .25em .7em; border-radius: 99em; font-size: .8em; border: 1px solid var(--line); }
+  .chip.ok { color: var(--good); border-color: var(--good); }
+  .chip.warn { color: var(--mid); border-color: var(--mid); }
+  .diag { list-style: none; margin: 0; padding: 0; font-size: .75em; color: var(--muted); }
+  .diag li { display: flex; justify-content: space-between; gap: 1em; padding: .2em 0; border-bottom: 1px solid var(--line); }
+  .diag .good { color: var(--good); }
+  .diag .bad { color: var(--bad); }
+  .diag li.ua { display: block; font-size: .85em; word-break: break-all; border: 0; padding-top: .5em; }
+
+  /* ---------- screen ---------- */
+  .mode-screen { font-size: clamp(15px, 1.45vw, 40px); overflow: hidden; }
+  #screen { height: 100vh; display: grid; grid-template-columns: 1fr 1.15fr; gap: 2.2vw; padding: 3vw 3.5vw; }
+  .join-col { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 1em; }
+  .title { font-size: 2.6em; color: var(--gold); margin: 0; line-height: 1.1; }
+  .subtitle { color: var(--muted); margin: 0; }
+  #qr { width: min(26vw, 46vh); background: #fff; border-radius: .6em; padding: .6em; }
+  #qr svg { display: block; width: 100%; height: auto; }
+  .code-label { color: var(--muted); font-size: .9em; margin: 0; }
+  #room-code { font-family: Georgia, serif; font-size: 3.4em; letter-spacing: .25em; color: var(--ink); margin: 0; line-height: 1; padding-left: .25em; }
+  #join-url { color: var(--muted); font-size: .8em; word-break: break-all; }
+  .game-col { display: flex; flex-direction: column; gap: 1.2em; min-height: 0; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: .8em; padding: 1em 1.2em; }
+  .panel h2 { margin: 0 0 .5em; font-size: 1.3em; color: var(--gold); }
+  .players-panel { flex: 1; min-height: 0; overflow: hidden; }
+  #players { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: .5em; }
+  #players li { background: var(--panel-2); border-radius: .5em; padding: .5em .8em; display: flex; justify-content: space-between; gap: .5em; }
+  #players li.empty { grid-column: 1 / -1; background: none; color: var(--muted); }
+  #players li.waving { background: var(--gold); color: var(--bg); }
+  .player-rtt { font-size: .8em; color: var(--muted); align-self: center; }
+  .player-rtt.good { color: var(--good); } .player-rtt.mid { color: var(--mid); } .player-rtt.bad { color: var(--bad); }
+  #players li.waving .player-rtt { color: var(--bg); }
+  .timer-panel { display: flex; align-items: center; justify-content: space-between; gap: 1em; }
+  #timer-label { color: var(--muted); margin: 0; }
+  .timer { font-family: Georgia, serif; font-size: 3.6em; line-height: 1; font-variant-numeric: tabular-nums; }
+  .timer.urgent { color: var(--bad); }
+  .controls { display: flex; flex-wrap: wrap; gap: .6em; }
+  .screen-footer { display: flex; gap: 1.2em; align-items: flex-start; }
+  .screen-footer .diag { flex: 1; font-size: .6em; }
+  #start-overlay {
+    position: fixed; inset: 0; background: rgba(10, 7, 6, .88); display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 1.2em; text-align: center; z-index: 10; padding: 2em;
+  }
+  #start-overlay p { color: var(--muted); max-width: 34em; margin: 0; }
+  #btn-start { font-size: 1.6em; padding: .6em 2em; }
+  .toast {
+    position: fixed; left: 50%; bottom: 6vh; transform: translateX(-50%) translateY(150%);
+    background: var(--gold); color: var(--bg); padding: .7em 1.4em; border-radius: .6em; font-size: 1.4em;
+    transition: transform .3s ease, opacity .3s ease; z-index: 20; opacity: 0; visibility: hidden;
+  }
+  .toast.visible { transform: translateX(-50%) translateY(0); opacity: 1; visibility: visible; }
+
+  /* ---------- phone & landing ---------- */
+  .mode-phone, .mode-landing { font-size: 17px; }
+  .phone-wrap { max-width: 30em; margin: 0 auto; padding: 1.5em 1.2em 3em; display: flex; flex-direction: column; gap: 1.1em; }
+  .phone-wrap .title { font-size: 2em; }
+  .phone-wrap form { display: flex; flex-direction: column; gap: .7em; }
+  .phone-wrap label { color: var(--muted); }
+  .phone-wrap input {
+    font: inherit; font-size: 1.2em; padding: .6em .8em; border-radius: .5em; border: 1px solid var(--line);
+    background: var(--panel-2); color: var(--ink);
+  }
+  #code-input { text-transform: uppercase; letter-spacing: .3em; text-align: center; }
+  .big-btn { font-size: 1.2em; padding: .8em; width: 100%; }
+  .note { color: var(--muted); font-size: .9em; margin: 0; }
+  .error { color: var(--bad); margin: 0; }
+  #phone-timer { font-family: Georgia, serif; font-size: 4em; text-align: center; line-height: 1; font-variant-numeric: tabular-nums; }
+  .signal { text-align: center; margin: 0; font-size: .9em; }
+  .signal.ok { color: var(--good); } .signal.warn { color: var(--mid); }
+
+  @media (max-aspect-ratio: 4/3) {
+    .mode-screen { overflow: auto; }
+    #screen { height: auto; min-height: 100vh; grid-template-columns: 1fr; }
+    #qr { width: min(60vw, 40vh); }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== Ekran wspólny ===== -->
+<main id="screen" hidden>
+  <section class="join-col">
+    <h1 class="title">Ostatnia wola</h1>
+    <p class="subtitle">Test sprzętu: ekran, telefony, dźwięk, licznik</p>
+    <div id="qr" aria-label="Kod QR do dołączenia"></div>
+    <p class="code-label">albo wpisz kod pokoju</p>
+    <p id="room-code">····</p>
+    <span id="join-url"></span>
+  </section>
+  <section class="game-col">
+    <div class="panel players-panel">
+      <h2>Gracze: <span id="player-count">0</span></h2>
+      <ul id="players"></ul>
+    </div>
+    <div class="panel timer-panel">
+      <div>
+        <p id="timer-label">Licznik czeka na Start</p>
+        <div id="timer" class="timer">–:––</div>
+      </div>
+      <span id="screen-status" class="chip warn">Realtime: łączenie…</span>
+    </div>
+    <div class="controls">
+      <button id="btn-timer" class="secondary">Licznik 60 s</button>
+      <button id="btn-music" class="secondary">Muzyka: wł.</button>
+      <button id="btn-fullscreen" class="secondary">Pełny ekran</button>
+      <button id="btn-new-room" class="secondary">Nowy pokój</button>
+    </div>
+    <div class="screen-footer">
+      <ul id="screen-diag" class="diag"></ul>
+    </div>
+  </section>
+  <div id="start-overlay">
+    <h1 class="title">Ostatnia wola</h1>
+    <p>Kliknij Start pilotem albo myszką. To odblokowuje dźwięk i uruchamia 60-sekundowy licznik. Potem zeskanuj kod QR telefonami.</p>
+    <button id="btn-start">Start</button>
+  </div>
+  <div id="toast" class="toast"></div>
+</main>
+
+<!-- ===== Telefon gracza ===== -->
+<main id="phone" class="phone-wrap" hidden>
+  <h1 class="title">Ostatnia wola</h1>
+  <p class="note">Pokój <strong id="phone-code"></strong> · test sprzętu</p>
+  <span id="phone-status" class="chip warn">Realtime: łączenie…</span>
+  <form id="join-form">
+    <label for="name-input">Jak masz na imię?</label>
+    <input id="name-input" maxlength="16" autocomplete="nickname" placeholder="np. Ania">
+    <button class="big-btn" type="submit">Dołącz</button>
+  </form>
+  <section id="phone-game" hidden>
+    <p class="note">Grasz jako <strong id="player-name"></strong></p>
+    <p id="rejoin-note" class="note" hidden>Wróciłeś do pokoju po odświeżeniu strony.</p>
+    <div id="phone-timer">–:––</div>
+    <p id="signal" class="signal warn">Czekam na sygnał z ekranu gry…</p>
+    <p><button id="btn-wave" class="big-btn">Pomachaj do ekranu</button></p>
+  </section>
+  <ul id="phone-diag" class="diag"></ul>
+</main>
+
+<!-- ===== Telefon bez kodu ===== -->
+<main id="landing" class="phone-wrap" hidden>
+  <h1 class="title">Ostatnia wola</h1>
+  <form id="code-form">
+    <label for="code-input">Wpisz kod pokoju z ekranu gry</label>
+    <input id="code-input" maxlength="4" autocomplete="off" placeholder="ABCD">
+    <p id="code-error" class="error" hidden>Kod ma 4 litery.</p>
+    <button class="big-btn" type="submit">Dołącz</button>
+  </form>
+  <p class="note">Ten telefon ma być ekranem gry?</p>
+  <button id="btn-be-screen" class="secondary big-btn">Użyj jako ekranu</button>
+</main>
+
+<script>/*__SUPABASE__*/</script>
+<script>/*__QRCODE__*/</script>
+<script>/*__APP__*/</script>
+</body>
+</html>
