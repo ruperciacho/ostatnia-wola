@@ -260,7 +260,7 @@
     function startTimer() {
       timerEnd = Date.now() + TIMER_MS;
       timerDone = false;
-      $('timer-label').textContent = 'Noc trwa';
+      $('timer-label').textContent = 'Test licznika trwa';
       sendState();
     }
 
@@ -324,7 +324,7 @@
       tEl.className = 'timer' + (left <= 10000 && left > 0 ? ' urgent' : '');
       if (left <= 0 && !timerDone) {
         timerDone = true;
-        $('timer-label').textContent = 'Koniec czasu';
+        $('timer-label').textContent = 'Koniec testu licznika';
         gong();
         sendState();
       }
@@ -335,7 +335,6 @@
       musicOn = startMusic();
       hide('start-overlay');
       $('btn-music').textContent = musicOn ? 'Muzyka: wył.' : 'Muzyka niedostępna';
-      startTimer();
       refreshDiag();
       setTimeout(refreshDiag, 800);
       $('btn-timer').focus();
