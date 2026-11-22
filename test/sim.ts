@@ -57,16 +57,18 @@ function simulate(seed: number, n: number, death: boolean, mode: '30' | '60', st
   while (g.phase !== 'end' && steps < 500) {
     steps++;
     assertNoLeak(g, now, label);
+    check(g.phase === 'night' ? g.endsAt !== null : g.endsAt === null, `${label}: timer only at night (phase=${g.phase})`);
     if (style === 'idle') {
-      now = (g.endsAt ?? now) + 1;
-      advance(g, ctx());
+      // Nikt nic nie robi: noc mija sama, resztę pomija host
+      if (g.endsAt !== null) { now = g.endsAt + 1; advance(g, ctx()); }
+      else applyAction(g, host, { type: 'skip' }, ctx());
       continue;
     }
     const phase = g.phase;
     for (const p of g.players) {
       if (rng() < 0.08) continue; // ktoś się zagapił
       const view = playerView(g, p.id, now).me!;
-      if (phase === 'prolog' || phase === 'morning' || phase === 'discussion') {
+      if (phase === 'prolog' || phase === 'morning' || phase === 'discussion' || phase === 'verdict') {
         applyAction(g, p.id, { type: 'ready' }, ctx());
       } else if (phase === 'night' && view.night) {
         const nv = view.night;
@@ -98,8 +100,9 @@ function simulate(seed: number, n: number, death: boolean, mode: '30' | '60', st
       if (g.phase !== phase) break;
     }
     if (g.phase === phase) {
-      now = (g.endsAt ?? now) + 1;
-      advance(g, ctx());
+      // Ktoś się zagapił: noc kończy czas, w innych fazach host pomija
+      if (g.endsAt !== null) { now = g.endsAt + 1; advance(g, ctx()); }
+      else applyAction(g, host, { type: 'skip' }, ctx());
     }
   }
   check(g.phase === 'end', `${label}: game ended (phase=${g.phase}, steps=${steps})`);

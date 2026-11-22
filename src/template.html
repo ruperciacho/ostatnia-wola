@@ -56,19 +56,46 @@
   .attrs span { font-size: .78em; background: var(--panel-2); border-radius: .4em; padding: .1em .45em; }
 
   /* ---------- ekran wspólny ---------- */
-  .mode-screen { font-size: clamp(15px, 1.4vw, 40px); }
-  #screen { min-height: 100vh; display: flex; flex-direction: column; padding: 2vw 3vw; gap: 1.5vw; }
+  /* Rozmiar liczony z szerokości i wysokości, żeby całość mieściła się na TV (także 960×540) */
+  .mode-screen { font-size: clamp(12px, min(1.3vw, 2.45vh), 40px); }
+  #screen { height: 100vh; overflow: hidden; display: flex; flex-direction: column; padding: 1.6vw 2.6vw; gap: 1.2vw; }
   .s-head { display: flex; justify-content: space-between; align-items: center; gap: 1em; }
   .s-head .title { font-size: 1.8em; color: var(--gold); }
   .s-phase { text-align: right; }
   .s-phase .label { font-size: 1.1em; color: var(--muted); }
   .s-phase .timer { font-size: 2.6em; line-height: 1; }
-  .s-body { flex: 1; display: grid; grid-template-columns: 1fr 22em; gap: 2vw; min-height: 0; }
-  .s-main { min-height: 0; }
-  .s-side { min-height: 0; }
+  .s-body { flex: 1; display: grid; grid-template-columns: 1fr 17em; gap: 2vw; min-height: 0; }
+  .s-main { min-height: 0; overflow: hidden; }
+  .s-side { min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: .8em; }
+  .s-side .panel { padding: .7em .9em; }
+  .s-side h2 { font-size: 1.1em; margin-bottom: .45em; }
   .s-side ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .4em; }
-  .s-side li { display: flex; justify-content: space-between; gap: .5em; background: var(--panel); border-radius: .5em; padding: .4em .7em; }
+  .s-side li { display: flex; justify-content: space-between; align-items: center; gap: .5em; background: var(--panel-2); border-radius: .5em; padding: .25em .6em; line-height: 1.25; }
   .s-side li .sub { font-size: .75em; color: var(--muted); }
+  .chips { display: flex; gap: .3em; flex-shrink: 0; }
+  .chip.wait { color: var(--gold); border-color: var(--gold); }
+  .s-side li .nm { min-width: 0; }
+  .s-side li .nm .sub { display: block; }
+  .s-side ul.compact { gap: .25em; }
+  .s-side ul.compact li { padding: .12em .5em; font-size: .9em; }
+  .s-side ul.compact li .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .s-side ul.compact li .nm .sub { display: inline; margin-left: .45em; }
+  .victims { font-size: .85em; line-height: 1.45; margin-bottom: .4em; }
+  .victims > span:not(:last-child)::after { content: ' · '; color: var(--muted); }
+  #screen.is-end .s-body { grid-template-columns: 1fr; }
+  #screen.is-end .s-side { display: none; }
+  .end-head { align-items: baseline; gap: 1em; flex-wrap: wrap; }
+  .end-grid { display: grid; grid-template-columns: 1.15fr .8fr 1.25fr; gap: 1.2vw; align-items: start; }
+  .end-grid .panel { padding: .7em .9em; }
+  .end-grid h2 { font-size: 1.1em; }
+  .end-grid .rank { font-size: .78em; }
+  .end-grid .rank td, .end-grid .rank th { padding: .18em .35em; }
+  .small { font-size: .75em; }
+  .headline { font-size: 1.15em; line-height: 1.4; }
+  .clue-rows { display: flex; flex-direction: column; gap: .35em; }
+  .clue-row { display: grid; grid-template-columns: 3.1em 1fr; gap: .5em; border-left: 3px solid var(--gold); padding: .15em 0 .15em .6em; font-size: .9em; line-height: 1.35; }
+  .clue-row.ghosts { border-color: var(--ghost); }
+  .clue-row .when { color: var(--muted); font-size: .85em; padding-top: .12em; }
   .lobby-grid { display: grid; grid-template-columns: auto 1fr; gap: 3vw; align-items: center; }
   #qr { width: min(24vw, 44vh); background: #fff; border-radius: .6em; padding: .6em; }
   #qr svg { display: block; width: 100%; height: auto; }
@@ -81,12 +108,15 @@
   .rank { width: 100%; border-collapse: collapse; }
   .rank td, .rank th { text-align: left; padding: .3em .5em; border-bottom: 1px solid var(--line); }
   .rank th { color: var(--muted); font-weight: normal; font-size: .85em; }
-  .recon { font-size: .7em; color: var(--muted); }
+  .recon { font-size: .75em; color: var(--muted); }
+  .recon h2 { font-size: 1.45em; }
   .recon-cols { columns: 2; column-gap: 2em; }
   .recon-cols p { break-inside: avoid; margin-bottom: .5em; }
   .mini-gallery { display: grid; grid-template-columns: 1fr 1fr; gap: .5em; align-content: start; font-size: .8em; }
   .mini-gallery .panel { padding: .5em .7em; }
   .mini-gallery.wide { grid-template-columns: repeat(4, 1fr); }
+  .mini-gallery.tight { font-size: .7em; gap: .35em; }
+  .mini-gallery.tight .panel { padding: .35em .55em; }
   .rank { font-size: .85em; }
   .recon b { color: var(--ink); font-weight: normal; }
   #start-overlay {
@@ -143,7 +173,7 @@
   </header>
   <section class="s-body">
     <div id="s-main" class="s-main"></div>
-    <aside class="s-side"><div class="panel"><h2 class="gold" style="font-size:1.1em;margin-bottom:.5em">Przy stole</h2><ul id="s-players"></ul></div></aside>
+    <aside class="s-side"><div class="panel"><h2 class="gold">Przy stole</h2><ul id="s-players"></ul></div><div id="s-manor" class="panel" hidden></div></aside>
   </section>
   <footer class="s-foot"><span id="s-status"></span><span><button id="btn-music" class="secondary">Muzyka</button> <button id="btn-new-room" class="secondary">Nowy pokój</button></span></footer>
   <div id="start-overlay">

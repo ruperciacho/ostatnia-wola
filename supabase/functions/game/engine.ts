@@ -92,11 +92,10 @@ export type Action =
 const MAX_PLAYERS = 12;
 const MIN_PLAYERS = 3;
 
-const BASE: Record<'30' | '60', Record<string, number>> = {
-  '30': { prolog: 90, night: 100, morning: 25, discussion: 150, accusation: 45, verdict: 10, dawn: 90 },
-  '60': { prolog: 90, night: 130, morning: 30, discussion: 240, accusation: 50, verdict: 10, dawn: 100 },
-};
-const CALM_PHASES = ['prolog', 'night', 'discussion', 'accusation', 'dawn'];
+// Limit czasu ma tylko noc (wybór pokoju i zadanie). Pozostałe fazy kończą się,
+// gdy wszyscy potwierdzą przyciskiem albo host pominie fazę.
+const NIGHT_SECONDS = 120;
+const CALM_MULT = 1.5;
 
 // ---------- helpers ----------
 function pick<T>(arr: T[], rng: () => number): T { return arr[Math.floor(rng() * arr.length)]; }
@@ -127,10 +126,9 @@ export function hourLabel(g: Game, hour: number): string {
   return (h < 10 ? '0' : '') + h + ':00';
 }
 
-function duration(g: Game, phase: string): number {
-  const base = BASE[g.settings.mode][phase] ?? 30;
-  const mult = g.settings.calm && CALM_PHASES.includes(phase) ? 1.5 : 1;
-  return Math.round(base * mult * 1000);
+function duration(g: Game, phase: Phase): number | null {
+  if (phase !== 'night') return null;
+  return Math.round(NIGHT_SECONDS * (g.settings.calm ? CALM_MULT : 1) * 1000);
 }
 
 const active = (g: Game) => g.players.filter((p) => p.status === 'active');
@@ -166,7 +164,8 @@ function cleanName(raw: string): string {
 // ---------- phases ----------
 function setPhase(g: Game, phase: Phase, ctx: Ctx) {
   g.phase = phase;
-  g.endsAt = phase === 'lobby' || phase === 'end' ? null : ctx.now + duration(g, phase);
+  const d = duration(g, phase);
+  g.endsAt = d === null ? null : ctx.now + d;
   for (const p of g.players) p.ready = false;
   if (phase === 'night') {
     g.night = {};
@@ -191,22 +190,34 @@ export function nightDone(g: Game, p: Player): boolean {
   return true;
 }
 
-function phaseComplete(g: Game): boolean {
+/** Czy gra czeka w tej fazie na ruch tego gracza (niezależnie od tego, czy go już zrobił). */
+function mustAct(g: Game, p: Player): boolean {
   switch (g.phase) {
     case 'prolog':
-    case 'morning':
-      return g.players.every((p) => p.ready);
     case 'night':
-      return g.players.every((p) => nightDone(g, p));
+    case 'morning':
+    case 'verdict':
+      return true;
     case 'discussion':
-      return active(g).every((p) => p.ready);
     case 'accusation':
-      return active(g).length <= 1 || active(g).every((p) => !!g.votes[p.id]);
+      return p.status === 'active';
     case 'dawn':
-      return g.players.filter((p) => hasVoteTarget(g, p)).every((p) => !!g.votes[p.id]);
+      return hasVoteTarget(g, p);
     default:
       return false;
   }
+}
+
+function actDone(g: Game, p: Player): boolean {
+  if (g.phase === 'night') return nightDone(g, p);
+  if (g.phase === 'accusation' || g.phase === 'dawn') return !!g.votes[p.id];
+  return p.ready;
+}
+
+function phaseComplete(g: Game): boolean {
+  if (g.phase === 'lobby' || g.phase === 'end') return false;
+  if (g.phase === 'accusation' && active(g).length <= 1) return true;
+  return g.players.every((p) => !mustAct(g, p) || actDone(g, p));
 }
 
 function killTargets(g: Game): { id: string; label: string }[] {
@@ -644,7 +655,8 @@ export function applyAction(g: Game, playerId: string | null, a: Action, ctx: Ct
       return {};
     }
     case 'ready': {
-      if (!['prolog', 'morning', 'discussion'].includes(g.phase)) return {};
+      if (!['prolog', 'morning', 'discussion', 'verdict'].includes(g.phase)) return {};
+      if (!mustAct(g, me)) return {};
       me.ready = true;
       advance(g, ctx);
       return {};
@@ -762,6 +774,7 @@ export function publicView(g: Game, now: number) {
     intro: INTRO,
     players: g.players.map((p) => ({
       id: p.id, name: p.name, status: p.status, ready: p.ready,
+      waiting: mustAct(g, p) && !actDone(g, p),
       character: charPublic(charById(p.characterId)),
     })),
     npcs: g.npcs.map((n) => ({ name: n.name, alive: n.alive })),
@@ -780,6 +793,8 @@ export function publicView(g: Game, now: number) {
       }
       : null,
     readyCount: g.players.filter((p) => p.ready).length,
+    waitingCount: g.players.filter((p) => mustAct(g, p) && !actDone(g, p)).length,
+    actCount: g.players.filter((p) => mustAct(g, p)).length,
     verdict: g.phase === 'verdict' ? g.verdict : null,
     result: ended && g.result ? endReveal(g) : null,
   };

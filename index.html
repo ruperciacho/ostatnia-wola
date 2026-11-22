@@ -56,19 +56,46 @@
   .attrs span { font-size: .78em; background: var(--panel-2); border-radius: .4em; padding: .1em .45em; }
 
   /* ---------- ekran wspólny ---------- */
-  .mode-screen { font-size: clamp(15px, 1.4vw, 40px); }
-  #screen { min-height: 100vh; display: flex; flex-direction: column; padding: 2vw 3vw; gap: 1.5vw; }
+  /* Rozmiar liczony z szerokości i wysokości, żeby całość mieściła się na TV (także 960×540) */
+  .mode-screen { font-size: clamp(12px, min(1.3vw, 2.45vh), 40px); }
+  #screen { height: 100vh; overflow: hidden; display: flex; flex-direction: column; padding: 1.6vw 2.6vw; gap: 1.2vw; }
   .s-head { display: flex; justify-content: space-between; align-items: center; gap: 1em; }
   .s-head .title { font-size: 1.8em; color: var(--gold); }
   .s-phase { text-align: right; }
   .s-phase .label { font-size: 1.1em; color: var(--muted); }
   .s-phase .timer { font-size: 2.6em; line-height: 1; }
-  .s-body { flex: 1; display: grid; grid-template-columns: 1fr 22em; gap: 2vw; min-height: 0; }
-  .s-main { min-height: 0; }
-  .s-side { min-height: 0; }
+  .s-body { flex: 1; display: grid; grid-template-columns: 1fr 17em; gap: 2vw; min-height: 0; }
+  .s-main { min-height: 0; overflow: hidden; }
+  .s-side { min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: .8em; }
+  .s-side .panel { padding: .7em .9em; }
+  .s-side h2 { font-size: 1.1em; margin-bottom: .45em; }
   .s-side ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .4em; }
-  .s-side li { display: flex; justify-content: space-between; gap: .5em; background: var(--panel); border-radius: .5em; padding: .4em .7em; }
+  .s-side li { display: flex; justify-content: space-between; align-items: center; gap: .5em; background: var(--panel-2); border-radius: .5em; padding: .25em .6em; line-height: 1.25; }
   .s-side li .sub { font-size: .75em; color: var(--muted); }
+  .chips { display: flex; gap: .3em; flex-shrink: 0; }
+  .chip.wait { color: var(--gold); border-color: var(--gold); }
+  .s-side li .nm { min-width: 0; }
+  .s-side li .nm .sub { display: block; }
+  .s-side ul.compact { gap: .25em; }
+  .s-side ul.compact li { padding: .12em .5em; font-size: .9em; }
+  .s-side ul.compact li .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .s-side ul.compact li .nm .sub { display: inline; margin-left: .45em; }
+  .victims { font-size: .85em; line-height: 1.45; margin-bottom: .4em; }
+  .victims > span:not(:last-child)::after { content: ' · '; color: var(--muted); }
+  #screen.is-end .s-body { grid-template-columns: 1fr; }
+  #screen.is-end .s-side { display: none; }
+  .end-head { align-items: baseline; gap: 1em; flex-wrap: wrap; }
+  .end-grid { display: grid; grid-template-columns: 1.15fr .8fr 1.25fr; gap: 1.2vw; align-items: start; }
+  .end-grid .panel { padding: .7em .9em; }
+  .end-grid h2 { font-size: 1.1em; }
+  .end-grid .rank { font-size: .78em; }
+  .end-grid .rank td, .end-grid .rank th { padding: .18em .35em; }
+  .small { font-size: .75em; }
+  .headline { font-size: 1.15em; line-height: 1.4; }
+  .clue-rows { display: flex; flex-direction: column; gap: .35em; }
+  .clue-row { display: grid; grid-template-columns: 3.1em 1fr; gap: .5em; border-left: 3px solid var(--gold); padding: .15em 0 .15em .6em; font-size: .9em; line-height: 1.35; }
+  .clue-row.ghosts { border-color: var(--ghost); }
+  .clue-row .when { color: var(--muted); font-size: .85em; padding-top: .12em; }
   .lobby-grid { display: grid; grid-template-columns: auto 1fr; gap: 3vw; align-items: center; }
   #qr { width: min(24vw, 44vh); background: #fff; border-radius: .6em; padding: .6em; }
   #qr svg { display: block; width: 100%; height: auto; }
@@ -81,12 +108,15 @@
   .rank { width: 100%; border-collapse: collapse; }
   .rank td, .rank th { text-align: left; padding: .3em .5em; border-bottom: 1px solid var(--line); }
   .rank th { color: var(--muted); font-weight: normal; font-size: .85em; }
-  .recon { font-size: .7em; color: var(--muted); }
+  .recon { font-size: .75em; color: var(--muted); }
+  .recon h2 { font-size: 1.45em; }
   .recon-cols { columns: 2; column-gap: 2em; }
   .recon-cols p { break-inside: avoid; margin-bottom: .5em; }
   .mini-gallery { display: grid; grid-template-columns: 1fr 1fr; gap: .5em; align-content: start; font-size: .8em; }
   .mini-gallery .panel { padding: .5em .7em; }
   .mini-gallery.wide { grid-template-columns: repeat(4, 1fr); }
+  .mini-gallery.tight { font-size: .7em; gap: .35em; }
+  .mini-gallery.tight .panel { padding: .35em .55em; }
   .rank { font-size: .85em; }
   .recon b { color: var(--ink); font-weight: normal; }
   #start-overlay {
@@ -143,7 +173,7 @@
   </header>
   <section class="s-body">
     <div id="s-main" class="s-main"></div>
-    <aside class="s-side"><div class="panel"><h2 class="gold" style="font-size:1.1em;margin-bottom:.5em">Przy stole</h2><ul id="s-players"></ul></div></aside>
+    <aside class="s-side"><div class="panel"><h2 class="gold">Przy stole</h2><ul id="s-players"></ul></div><div id="s-manor" class="panel" hidden></div></aside>
   </section>
   <footer class="s-foot"><span id="s-status"></span><span><button id="btn-music" class="secondary">Muzyka</button> <button id="btn-new-room" class="secondary">Nowy pokój</button></span></footer>
   <div id="start-overlay">
@@ -2822,12 +2852,17 @@ var qrcode = function() {
     $('s-label').textContent = label;
     $('btn-new-room').hidden = !(v.phase === 'lobby' || v.phase === 'end');
 
+    var inGame = v.phase !== 'lobby' && v.phase !== 'end';
+    $('screen').classList.toggle('is-end', v.phase === 'end');
+    $('s-players').classList.toggle('compact', v.players.length > 7);
     $('s-players').innerHTML = v.players.map(function (p) {
       var right = statusChip(p);
-      if (!right && p.ready && ['prolog', 'morning', 'discussion'].indexOf(v.phase) >= 0) right = '<span class="chip ready">gotowy</span>';
-      if (!right && p.id === v.hostId && v.phase === 'lobby') right = '<span class="chip">host</span>';
-      return '<li><span>' + esc(p.name) + (p.character ? '<div class="sub">' + esc(p.character.name) + '</div>' : '') + '</span>' + right + '</li>';
+      if (inGame && p.waiting) right += '<span class="chip wait">czeka</span>';
+      else if (inGame && p.status === 'active') right += '<span class="chip ready">✓</span>';
+      if (p.id === v.hostId && v.phase === 'lobby') right = '<span class="chip">host</span>';
+      return '<li><span class="nm">' + esc(p.name) + (p.character ? '<span class="sub">' + esc(p.character.name) + '</span>' : '') + '</span><span class="chips">' + right + '</span></li>';
     }).join('') || '<li class="muted">Nikt jeszcze nie dołączył.</li>';
+    renderManor(v, inGame);
 
     var m = $('s-main');
     var html = '';
@@ -2835,7 +2870,7 @@ var qrcode = function() {
 
     if (v.phase === 'lobby') {
       var n = v.players.length;
-      var settings = 'Tryb: ' + (v.settings.mode === '30' ? '30 minut' : '1 godzina') +
+      var settings = 'Tryb: ' + (v.settings.mode === '30' ? 'ok. 30 min (4 rundy)' : 'ok. 1 h (6 rund)') +
         ' · śmierć graczy: ' + (v.settings.death ? 'włączona' : 'wyłączona') +
         ' · tempo: ' + (v.settings.calm ? 'spokojne' : 'normalne');
       html = '<div class="lobby-grid"><div id="qr"></div><div class="stack">' +
@@ -2855,7 +2890,7 @@ var qrcode = function() {
 
     if (v.phase === 'prolog') {
       html = '<div class="stack"><div class="stack big-text">' + v.intro.map(function (t) { return '<p>' + esc(t) + '</p>'; }).join('') + '</div>' +
-        '<p class="muted">Gotowi: ' + v.readyCount + '/' + v.players.length + '. Sprawdźcie na telefonach swoje role i postacie.</p>' +
+        '<p class="muted">Gotowi: ' + waitLine(v) + '. Sprawdźcie na telefonach swoje role i kliknijcie „Gotowe”.</p>' +
         '<div class="mini-gallery wide">' + v.players.map(miniCard).join('') + '</div></div>';
     } else if (v.phase === 'night') {
       html = '<div class="stack center" style="padding-top:6vh"><h2 class="huge gold">Gasną światła</h2>' +
@@ -2864,20 +2899,37 @@ var qrcode = function() {
     } else if (v.phase === 'morning') {
       html = '<div class="stack">' + (v.morning ? v.morning.lines.map(function (l, i) { return '<p class="' + (i === 0 ? 'muted' : 'big-text') + '">' + esc(l) + '</p>'; }).join('') : '') +
         (v.morning && v.morning.clues.length ? '<h2 class="gold" style="margin-top:.6em">Nowe poszlaki</h2>' + v.morning.clues.map(function (c) { return '<div class="clue big-text">' + esc(c) + '</div>'; }).join('') : '') +
-        '<p class="muted">Gotowi: ' + v.readyCount + '/' + v.players.length + '</p></div>';
+        '<p class="muted">Przeczytali: ' + waitLine(v) + '. Kliknijcie „Przeczytane” na telefonach.</p></div>';
     } else if (v.phase === 'discussion') {
-      html = board(v, 'Narada. Porównajcie poszlaki i alibi. Jedna poszlaka na noc może być podrzucona.');
+      html = board(v, 'Narada. Porównajcie poszlaki i alibi, część może być podrzucona. Gotowi do głosowania: ' + waitLine(v) + '.');
     } else if (v.phase === 'accusation') {
-      html = board(v, 'Oskarżenie! Głosujcie na telefonach. Głosy: ' + v.voting.voted + '/' + v.voting.eligible +
+      html = board(v, 'Oskarżenie! Głosujcie na telefonach. Głosy: ' + waitLine(v) +
         (v.voting.lastHour ? '. Kogut pieje: tym razem trzeba kogoś wskazać.' : '.'));
     } else if (v.phase === 'verdict') {
-      html = '<div class="stack center" style="padding-top:8vh"><h2 class="huge gold">Werdykt</h2><p class="huge">' + esc(v.verdict ? v.verdict.text : '') + '</p></div>';
+      html = '<div class="stack center" style="padding-top:8vh"><h2 class="huge gold">Werdykt</h2><p class="huge">' + esc(v.verdict ? v.verdict.text : '') + '</p>' +
+        '<p class="muted">Kliknijcie „Dalej” na telefonach: ' + waitLine(v) + '</p></div>';
     } else if (v.phase === 'dawn') {
-      html = board(v, 'Świt. Ostateczne oskarżenie: głosują wszyscy, także aresztowani i duchy. Głosy: ' + v.voting.voted + '/' + v.voting.eligible + '.');
+      html = board(v, 'Świt. Ostateczne oskarżenie: głosują wszyscy, także aresztowani i duchy. Głosy: ' + waitLine(v) + '.');
     } else if (v.phase === 'end' && v.result) {
       html = endScreen(v);
     }
     m.innerHTML = html;
+  }
+
+  // Panel pod listą graczy: ofiary nocy i stan dworu
+  function renderManor(v, inGame) {
+    var box = $('s-manor');
+    box.hidden = !inGame || v.phase === 'prolog';
+    if (box.hidden) return;
+    var dead = v.npcs.filter(function (n) { return !n.alive; }).map(function (n) { return '<span>' + esc(n.name) + '</span>'; });
+    v.players.forEach(function (p) { if (p.status === 'dead') dead.push('<span>' + esc(p.character ? p.character.name : p.name) + ' <span class="muted">(' + esc(p.name) + ')</span></span>'); });
+    box.innerHTML = '<h2 class="gold">Ofiary</h2>' + (dead.length ? '<p class="victims">' + dead.join('') + '</p>' : '<p class="muted small">Na razie nikt.</p>') +
+      '<p class="muted small">Pamiątek we dworze: ' + v.heirloomsLeft + '/6 · tablica duchów: ' + v.ghostProgress + '/3</p>';
+  }
+
+  function waitLine(v) {
+    var done = v.actCount - v.waitingCount;
+    return done + '/' + v.actCount;
   }
 
   function miniCard(p) {
@@ -2887,16 +2939,22 @@ var qrcode = function() {
       '<div class="muted">' + esc(p.name) + '</div><div class="attrs">' + c.attrs.map(function (a) { return '<span>' + esc(a.label) + '</span>'; }).join('') + '</div></div>';
   }
 
+  var BOARD_MAX = 6;
   function board(v, headline) {
     var gallery = v.players.map(miniCard).join('');
-    var clues = v.publicClues.length > 8 ? v.publicClues.slice(-8) : v.publicClues;
-    var dead = v.npcs.filter(function (n) { return !n.alive; }).map(function (n) { return n.name; });
-    return '<div class="stack"><p class="big-text">' + esc(headline) + '</p><div class="board">' +
-      '<div class="panel stack"><h2 class="gold">Tablica dowodów</h2>' + clueList(clues) +
-      (v.publicClues.length > 8 ? '<p class="muted" style="font-size:.8em">Starsze poszlaki są w telefonach, w zakładce Notes.</p>' : '') +
-      '<p class="muted" style="font-size:.8em">Ofiary wśród służby i gości: ' + esc(dead.length ? dead.join(', ') : 'brak') +
-      ' · pamiątek we dworze: ' + v.heirloomsLeft + '/6 · tablica duchów: ' + v.ghostProgress + '/3</p></div>' +
-      '<div class="mini-gallery">' + gallery + '</div></div></div>';
+    var clues = v.publicClues.length > BOARD_MAX ? v.publicClues.slice(-BOARD_MAX) : v.publicClues;
+    return '<div class="stack"><p class="headline">' + esc(headline) + '</p><div class="board">' +
+      '<div class="panel stack board-clues"><h2 class="gold">Tablica dowodów</h2><div class="clue-rows">' + clueRows(clues) + '</div>' +
+      (v.publicClues.length > BOARD_MAX ? '<p class="muted small">Starsze poszlaki: telefon, zakładka Notes.</p>' : '') + '</div>' +
+      '<div class="mini-gallery' + (v.players.length > 8 ? ' tight' : '') + '">' + gallery + '</div></div></div>';
+  }
+
+  // Zwięzłe wiersze dowodów na ekran TV: godzina w kolumnie, tekst w jednej linii
+  function clueRows(clues) {
+    if (!clues.length) return '<p class="muted">Na razie brak poszlak.</p>';
+    return clues.slice().reverse().map(function (c) {
+      return '<div class="clue-row' + (c.source === 'duchy' ? ' ghosts' : '') + '"><span class="when">' + esc(c.clock) + '</span><span>' + esc(c.text) + '</span></div>';
+    }).join('');
   }
 
   function endScreen(v) {
@@ -2909,17 +2967,19 @@ var qrcode = function() {
     }).join('') + '</table>';
     var titles = r.titles.map(function (t) { return '<p><span class="gold">' + esc(t.title) + ':</span> ' + esc(t.who) + ' <span class="muted">(' + esc(t.why) + ')</span></p>'; }).join('');
     var neutral = r.neutralWinners.length ? '<p>Wygrywają też: ' + esc(r.neutralWinners.join(', ')) + '</p>' : '';
+    // Przy wielu graczach pomijamy listę „kto był w którym pokoju”, żeby wszystko zmieściło się na ekranie
+    var withRooms = r.ranking.length <= 6;
     var recon = r.reconstruction.map(function (h) {
       return '<p><b>' + esc(h.clock) + '</b> · ' + (h.victim ? 'ofiara: ' + esc(h.victim) + ', ' : '') +
         (h.executor ? 'sprawca: ' + esc(h.executor) : 'bez zamachu') +
         (h.failed ? ' (nieudany: ' + (h.failed === 'lekarz' ? 'lekarz' : 'tłok') + ')' : '') +
         (h.theft ? ' · ' + esc(h.theft) : '') + (h.arrested ? ' · areszt: ' + esc(h.arrested) : '') +
-        '<br>' + esc(h.rooms.join(' · ')) + '</p>';
+        (withRooms ? '<br>' + esc(h.rooms.join(' · ')) : '') + '</p>';
     }).join('');
-    return '<div class="stack"><h2 class="huge gold">' + winner + '</h2><p class="big-text">' + esc(r.reason) + '</p>' + neutral +
-      '<div class="board"><div class="panel">' + rank + '</div><div class="panel stack">' + titles + '</div></div>' +
-      '<div class="panel recon"><h2 class="gold" style="font-size:1.3em;margin-bottom:.4em">Rekonstrukcja nocy</h2><div class="recon-cols">' + recon + '</div></div>' +
-      '<p class="muted">Host może zacząć nową grę z telefonu.</p></div>';
+    return '<div class="stack end-wrap"><div class="row end-head"><h2 class="huge gold">' + winner + '</h2><p class="big-text">' + esc(r.reason) + '</p></div>' + neutral +
+      '<div class="end-grid"><div class="panel">' + rank + '</div>' +
+      '<div class="panel stack"><h2 class="gold">Tytuły</h2>' + (titles || '<p class="muted">Brak.</p>') + '<p class="muted small">Host może zacząć nową grę z telefonu.</p></div>' +
+      '<div class="panel recon stack"><h2 class="gold">Rekonstrukcja nocy</h2>' + recon + '</div></div></div>';
   }
 
   // =====================================================================
@@ -3002,7 +3062,7 @@ var qrcode = function() {
     else if (v.phase === 'morning') renderMorning(v);
     else if (v.phase === 'discussion') renderDiscussion(v);
     else if (v.phase === 'accusation' || v.phase === 'dawn') renderVote(v);
-    else if (v.phase === 'verdict') setNow(key, '<div class="panel stack"><h2 class="gold">Werdykt</h2><p class="big-text" style="font-size:1.2em">' + esc(v.verdict ? v.verdict.text : '') + '</p></div>');
+    else if (v.phase === 'verdict') renderVerdict(v);
     else if (v.phase === 'end') renderEnd(v);
   }
 
@@ -3060,12 +3120,12 @@ var qrcode = function() {
       var s = v.settings;
       html += '<div class="panel stack"><h2 class="gold">Ustawienia (host)</h2>' +
         '<p class="muted">Długość</p><div class="grid2">' +
-        '<button data-set="mode" data-val="30" class="' + (s.mode === '30' ? 'chosen' : 'secondary') + '">30 minut</button>' +
-        '<button data-set="mode" data-val="60" class="' + (s.mode === '60' ? 'chosen' : 'secondary') + '">1 godzina</button></div>' +
+        '<button data-set="mode" data-val="30" class="' + (s.mode === '30' ? 'chosen' : 'secondary') + '">ok. 30 min (4 rundy)</button>' +
+        '<button data-set="mode" data-val="60" class="' + (s.mode === '60' ? 'chosen' : 'secondary') + '">ok. 1 h (6 rund)</button></div>' +
         '<p class="muted">Śmierć graczy' + (n < 5 ? ' (od 5 graczy)' : '') + '</p><div class="grid2">' +
         '<button data-set="death" data-val="0" class="' + (!s.death ? 'chosen' : 'secondary') + '">Wyłączona</button>' +
         '<button data-set="death" data-val="1" class="' + (s.death ? 'chosen' : 'secondary') + '"' + (n < 5 ? ' disabled' : '') + '>Włączona</button></div>' +
-        '<p class="muted">Tempo (spokojne = więcej czasu na czytanie i zadania)</p><div class="grid2">' +
+        '<p class="muted">Tempo nocnych zadań (spokojne = więcej czasu i łatwiejsze mini-gry)</p><div class="grid2">' +
         '<button data-set="calm" data-val="0" class="' + (!s.calm ? 'chosen' : 'secondary') + '">Normalne</button>' +
         '<button data-set="calm" data-val="1" class="' + (s.calm ? 'chosen' : 'secondary') + '">Spokojne</button></div>' +
         '<button id="btn-go" class="big-btn"' + (n < 3 ? ' disabled' : '') + '>' + (n < 3 ? 'Potrzeba 3 graczy' : 'Start gry') + '</button></div>';
@@ -3267,8 +3327,8 @@ var qrcode = function() {
 
   function runMiniGame(box, roomId, calm, done) {
     var kind = GAME_FOR_ROOM[roomId] || 'candle';
-    var limit = (calm ? 70 : 45) * 1000;
-    var started = Date.now();
+    // Zadanie trwa do końca nocy (noc ma limit 2 min, w spokojnym tempie 3 min)
+    var deadline = G.view && G.view.endsAt ? G.view.endsAt - 1500 : serverNow() + 120000;
     var finished = false;
     var timers = [];
     var raf = null;
@@ -3287,7 +3347,7 @@ var qrcode = function() {
       '<p id="g-help" class="muted"></p><div id="g-area" class="stack"></div><button id="g-quit" class="secondary">Rezygnuję</button></div>';
     box.querySelector('#g-quit').addEventListener('click', function () { finish(false); });
     timers.push(setInterval(function () {
-      var left = limit - (Date.now() - started);
+      var left = deadline - serverNow();
       var t = box.querySelector('#g-time');
       if (t) t.textContent = fmtTime(left);
       if (left <= 0) finish(false);
@@ -3433,12 +3493,26 @@ var qrcode = function() {
     if (b) b.addEventListener('click', function () { b.disabled = true; act({ type: 'ready' }).catch(function () { b.disabled = false; }); });
   }
 
+  function renderVerdict(v) {
+    var me = v.me;
+    var html = '<div class="panel stack"><h2 class="gold">Werdykt</h2><p class="big-text" style="font-size:1.2em">' + esc(v.verdict ? v.verdict.text : '') + '</p></div>' +
+      (me.ready ? '<p class="muted center">Czekamy na pozostałych…</p>' : '<button id="btn-ready" class="big-btn">Dalej</button>') + hostBar(v);
+    var root = setNow(phoneKey, html);
+    bindSkip(root);
+    bindReady(root);
+  }
+
+  function bindReady(root) {
+    var b = root.querySelector('#btn-ready');
+    if (b) b.addEventListener('click', function () { b.disabled = true; act({ type: 'ready' }).catch(function () { b.disabled = false; }); });
+  }
+
   function renderDiscussion(v) {
     var me = v.me;
     var active = me.status === 'active';
     var html = '<div class="panel stack"><h2 class="gold">Narada</h2><p>Rozmawiajcie przy stole. Twoje poszlaki są w zakładce <b>Notes</b>.</p>' +
       '<p class="muted">Pamiętaj: część poszlak na tablicy może być podrzucona przez zabójcę.</p></div>' +
-      (active ? (me.ready ? '<p class="muted center">Gotowy do głosowania. Czekamy na resztę… (' + v.readyCount + ')</p>' : '<button id="btn-ready" class="big-btn">Gotowy do głosowania</button>')
+      (active ? (me.ready ? '<p class="muted center">Gotowy do głosowania. Czekamy na resztę… (' + waitLine(v) + ')</p>' : '<button id="btn-ready" class="big-btn">Gotowy do głosowania</button>')
         : '<p class="muted">Jako ' + (me.status === 'dead' ? 'duch' : 'aresztant') + ' możesz mówić, ale nie głosujesz aż do świtu.</p>') + hostBar(v);
     var root = setNow(phoneKey, html);
     bindSkip(root);
@@ -3461,7 +3535,7 @@ var qrcode = function() {
     if (!dawn && !(v.voting && v.voting.lastHour)) opts.push({ id: 'none', label: 'Nikogo nie oskarżam' });
     var html = '<div class="panel stack">' + head + '<div class="choice-list">' +
       opts.map(function (t) { return '<button class="' + (me.vote === t.id ? 'chosen' : 'secondary') + '" data-val="' + esc(t.id) + '">' + esc(t.label) + '</button>'; }).join('') +
-      '</div><p class="muted">' + (me.vote ? 'Głos oddany. Możesz go zmienić do końca czasu.' : 'Wybierz osobę.') +
+      '</div><p class="muted">' + (me.vote ? 'Głos oddany. Możesz go zmienić, dopóki nie zagłosują wszyscy.' : 'Wybierz osobę.') +
       (v.voting ? ' Głosy: ' + v.voting.voted + '/' + v.voting.eligible : '') + '</p></div>' + hostBar(v);
     var root = setNow(phoneKey, html);
     bindSkip(root);
