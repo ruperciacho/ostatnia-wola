@@ -130,7 +130,11 @@
     if (G.refreshing && !force && Date.now() - G.refreshStarted < CALL_TIMEOUT + 2000) { G.pending = true; return; }
     G.refreshing = true;
     G.refreshStarted = Date.now();
-    call({ op: 'view', code: G.code, token: G.token || undefined }).then(function (j) {
+    var tok = G.token || null;
+    call({ op: 'view', code: G.code, token: tok || undefined }).then(function (j) {
+      // Odpowiedź na zapytanie wysłane jeszcze przed dołączeniem (bez tokenu) jest nieaktualna:
+      // nie może cofnąć telefonu do formularza „Jak masz na imię?”
+      if ((G.token || null) !== tok) return;
       if (j && j.badToken && !G.isScreen) {
         G.token = null;
         sDel('token:' + G.code);
