@@ -4,6 +4,13 @@ Imprezowa gra detektywistyczna dla 3–12 osób: wspólny ekran (TV, laptop, tab
 
 **Graj:** https://ruperciacho.github.io/ostatnia-wola/ — otwórz na wspólnym ekranie, telefony skanują kod QR.
 
+## Zasady w skrócie
+
+- Po starcie wszyscy widzą ekran zasad: role w tej grze (z liczbami), przebieg godziny, areszt, rozmowy i punkty. Gra rusza, gdy każdy kliknie „Rozumiem”.
+- Licznik czasu ma tylko noc (2 min, w spokojnym tempie 3 min); pozostałe fazy idą dalej po potwierdzeniu wszystkich albo po pominięciu przez hosta.
+- Głosy są jawne. Zabójca w areszcie zostaje do końca, każdy inny wychodzi po godzinie, a głosujący na niewinnego tracą punkt (zabójca i złodziej dostają +1 za machlojkę).
+- 12 mini-gier losowanych co noc dla każdego gracza i po 10 opisów śmierci na pokój.
+
 ## Jak to działa
 
 - `index.html` — cała strona (ekran i telefon), budowana z `src/` przez `build.py`, serwowana przez GitHub Pages.

@@ -85,6 +85,14 @@
   #screen.is-end .s-body { grid-template-columns: 1fr; }
   #screen.is-end .s-side { display: none; }
   .end-head { align-items: baseline; gap: 1em; flex-wrap: wrap; }
+  .rules-tv { display: grid; grid-template-columns: 1.05fr 1fr 1.1fr; gap: 1.2vw; align-items: start; font-size: .78em; line-height: 1.4; }
+  .rules-tv .panel { padding: .7em .9em; }
+  .rules-tv h2 { font-size: 1.35em; margin-bottom: .35em; }
+  .rules-tv ul, .rules-tv ol { margin: 0; padding-left: 1.15em; display: flex; flex-direction: column; gap: .3em; }
+  .rules-tv .role-line b { color: var(--gold); }
+  .rules-tv .slogan { color: var(--gold); font-style: italic; }
+  .verdict-tv { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5vw; align-items: start; }
+  .verdict-tv .votes { font-size: .9em; }
   .end-grid { display: grid; grid-template-columns: 1.15fr .8fr 1.25fr; gap: 1.2vw; align-items: start; }
   .end-grid .panel { padding: .7em .9em; }
   .end-grid h2 { font-size: 1.1em; }
@@ -155,7 +163,32 @@
   .game-items { display: grid; grid-template-columns: 1fr 1fr; gap: .5em; }
   .game-items button { padding: .9em .4em; }
   .game-items button.done { background: var(--good); color: var(--bg); }
-  .game-items button.wrong { background: var(--bad); color: #fff; }
+  .game-items button.wrong, .game-grid .cell.wrong { background: var(--bad); color: #fff; }
+  .game-grid { display: grid; gap: .4em; }
+  .game-grid .cell { aspect-ratio: 1; font-size: 1.6em; padding: 0; background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); border-radius: .5em; display: flex; align-items: center; justify-content: center; }
+  .game-grid .cell.done { background: var(--good); }
+  .game-grid.static .cell { font-size: 1.4em; }
+  .simon { display: grid; grid-template-columns: 1fr 1fr; gap: .6em; }
+  .simon .pad { aspect-ratio: 1.4; opacity: .45; border-radius: .8em; }
+  .simon .pad.red { background: #c0504a; } .simon .pad.blue { background: #4a78c0; }
+  .simon .pad.green { background: #4aa060; } .simon .pad.gold { background: #d9a94e; }
+  .simon .pad.lit { opacity: 1; box-shadow: 0 0 1.2em rgba(255, 255, 255, .6); }
+  .simon .pad:disabled { cursor: default; }
+  .seq-show { font-size: 1.5em; letter-spacing: .08em; }
+  .q-big { font-size: 1.5em; }
+  .emoji-btn { font-size: 1.5em; }
+  .phase-hint { background: var(--panel-2); border-left: 3px solid var(--gold); border-radius: .4em; padding: .5em .7em; font-size: .9em; }
+  .phase-hint:empty { display: none; }
+  .rules h3 { color: var(--gold); font-size: 1.05em; margin: .2em 0; }
+  .rules ul, .rules ol { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: .25em; }
+  .rules .role-line b { color: var(--gold); }
+  .pts-log { display: flex; flex-direction: column; gap: .2em; font-size: .9em; }
+  .pts-log div { display: grid; grid-template-columns: 3em 1fr; gap: .5em; }
+  .pts-log .plus { color: var(--good); } .pts-log .minus { color: var(--bad); }
+  .votes { display: flex; flex-direction: column; gap: .3em; }
+  .votes .vrow { display: grid; grid-template-columns: minmax(8em, auto) 1fr; gap: .6em; align-items: baseline; }
+  .votes .vrow b { color: var(--gold); }
+  .votes .vrow.arrested b { color: var(--bad); }
   .bar { position: relative; height: 3em; background: var(--panel-2); border-radius: .5em; overflow: hidden; }
   .bar .zone { position: absolute; top: 0; bottom: 0; background: rgba(124, 196, 138, .35); border-left: 2px solid var(--good); border-right: 2px solid var(--good); }
   .bar .marker { position: absolute; top: 0; bottom: 0; width: 6px; margin-left: -3px; background: var(--gold); }
@@ -189,6 +222,7 @@
     <div><div class="title serif">Ostatnia wola</div><div id="p-sub" class="muted" style="font-size:.85em"></div></div>
     <div class="center"><div id="p-label" class="muted" style="font-size:.8em"></div><div id="p-timer" class="timer js-timer"></div></div>
   </header>
+  <p id="p-hint" class="phase-hint"></p>
   <section id="p-now" class="stack"></section>
   <section id="p-notes" class="stack" hidden></section>
   <section id="p-char" class="stack" hidden></section>

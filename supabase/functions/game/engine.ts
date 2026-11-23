@@ -5,7 +5,7 @@ import {
 } from './data.ts';
 import type { Category, Character, RoleId } from './data.ts';
 
-export type Phase = 'lobby' | 'prolog' | 'night' | 'morning' | 'discussion' | 'accusation' | 'verdict' | 'dawn' | 'end';
+export type Phase = 'lobby' | 'rules' | 'prolog' | 'night' | 'morning' | 'discussion' | 'accusation' | 'verdict' | 'dawn' | 'end';
 export type Status = 'active' | 'dead' | 'arrested';
 
 export interface Note { hour: number; text: string; kind: 'clue' | 'info' }
@@ -20,12 +20,18 @@ export interface Player {
   status: Status;
   ready: boolean;
   points: number;
+  /** Za co gracz dostał lub stracił punkty (widzi to na telefonie). */
+  pointsLog: PointEntry[];
   stats: { tasks: number; correctVotes: number; votesReceived: number };
   heirlooms: string[];
   notes: Note[];
   lastProtected: string | null;
   jesterWin?: boolean;
 }
+
+export interface PointEntry { hour: number; pts: number; why: string }
+export interface VoteRecord { hour: number; kind: 'accusation' | 'dawn'; votes: Record<string, string>; arrestedId?: string }
+export interface Jail { playerId: string; hour: number; voters: string[] }
 
 export interface NightChoice { room?: string; target?: string; watch?: string; task?: 'ok' | 'fail'; frame?: string }
 export interface Npc { id: string; name: string; alive: boolean; room?: string }
@@ -66,7 +72,10 @@ export interface Game {
   publicClues: PublicClue[];
   morning: { lines: string[]; clues: string[] } | null;
   votes: Record<string, string>;
-  verdict: { text: string } | null;
+  verdict: { text: string; lines: string[] } | null;
+  /** Osoba zamknięta w ostatnim głosowaniu; rozliczenie po godzinie. */
+  jail: Jail | null;
+  voteLog: VoteRecord[];
   pendingWinner: 'rodzina' | null;
   ghostProgress: number;
   heirlooms: Record<string, boolean>;
@@ -138,6 +147,11 @@ const hasVoteTarget = (g: Game, p: Player) => active(g).some((a) => a.id !== p.i
 const deathAllowed = (g: Game) => g.players.length >= 5;
 
 function note(p: Player, hour: number, text: string, kind: Note['kind'] = 'clue') { p.notes.push({ hour, text, kind }); }
+function addPoints(p: Player, hour: number, pts: number, why: string) {
+  p.points += pts;
+  (p.pointsLog || (p.pointsLog = [])).push({ hour, pts, why });
+}
+const isSchemer = (p: Player) => p.role === 'zabojca' || p.role === 'zlodziej';
 
 // ---------- creation ----------
 export function createGame(code: string, now: number): Game {
@@ -146,7 +160,7 @@ export function createGame(code: string, now: number): Game {
     settings: { mode: '30', death: false, calm: false },
     touched: { mode: false, death: false },
     hostId: null, players: [], npcs: [], night: {}, publicClues: [], morning: null,
-    votes: {}, verdict: null, pendingWinner: null, ghostProgress: 0, heirlooms: {}, log: [], result: null,
+    votes: {}, verdict: null, jail: null, voteLog: [], pendingWinner: null, ghostProgress: 0, heirlooms: {}, log: [], result: null,
   };
 }
 
@@ -193,6 +207,7 @@ export function nightDone(g: Game, p: Player): boolean {
 /** Czy gra czeka w tej fazie na ruch tego gracza (niezależnie od tego, czy go już zrobił). */
 function mustAct(g: Game, p: Player): boolean {
   switch (g.phase) {
+    case 'rules':
     case 'prolog':
     case 'night':
     case 'morning':
@@ -229,6 +244,9 @@ function killTargets(g: Game): { id: string; label: string }[] {
 
 function nextPhase(g: Game, ctx: Ctx) {
   switch (g.phase) {
+    case 'rules':
+      setPhase(g, 'prolog', ctx);
+      return;
     case 'prolog':
       g.hour = 1;
       setPhase(g, 'night', ctx);
@@ -239,8 +257,9 @@ function nextPhase(g: Game, ctx: Ctx) {
       return;
     case 'morning': {
       if (g.settings.death) {
+        // Niewinni w areszcie wrócą za godzinę, więc liczą się jako goście przy stole
         const killers = freeKillers(g).length;
-        const others = active(g).length - killers;
+        const others = g.players.filter((p) => p.status !== 'dead' && p.role !== 'zabojca').length;
         if (killers > 0 && killers >= others) {
           finish(g, 'zabojcy', 'Przy stole zostało tylu zabójców, ilu pozostałych gości.', ctx);
           return;
@@ -298,6 +317,7 @@ function startGame(g: Game, ctx: Ctx) {
     p.role = roles[i];
     p.status = 'active';
     p.points = 0;
+    p.pointsLog = [];
     p.stats = { tasks: 0, correctVotes: 0, votesReceived: 0 };
     p.heirlooms = [];
     p.notes = [];
@@ -314,6 +334,8 @@ function startGame(g: Game, ctx: Ctx) {
   g.log = [];
   g.morning = null;
   g.verdict = null;
+  g.jail = null;
+  g.voteLog = [];
   g.pendingWinner = null;
   g.ghostProgress = 0;
   g.result = null;
@@ -323,7 +345,8 @@ function startGame(g: Game, ctx: Ctx) {
     const others = killers.filter((x) => x.id !== k.id).map(who);
     if (others.length) note(k, 0, `Twoi wspólnicy: ${others.join(', ')}.`, 'info');
   }
-  setPhase(g, 'prolog', ctx);
+  // Najpierw ekran z zasadami tej gry, potem kolacja i role
+  setPhase(g, 'rules', ctx);
 }
 
 // ---------- night resolution ----------
@@ -389,7 +412,7 @@ function resolveNight(g: Game, ctx: Ctx) {
         victim.status = 'dead';
         logEntry.victim = { name: who(victim), room: attackRoom, playerId: victim.id };
         lines.push(`${cap(room.loc)} znaleziono: ${who(victim)}.`);
-        lines.push(room.death);
+        lines.push(pick(room.deaths, rng));
         note(victim, hour, 'Zginąłeś. Dalej grasz jako duch: rób zadania, a duchy odsłonią poszlaki.', 'info');
       }
     } else {
@@ -400,7 +423,7 @@ function resolveNight(g: Game, ctx: Ctx) {
       attacked = true;
       logEntry.victim = { name: npc.name, room: attackRoom };
       lines.push(`${cap(room.loc)} znaleziono: ${npc.name}.`);
-      lines.push(room.death);
+      lines.push(pick(room.deaths, rng));
     }
   }
 
@@ -458,7 +481,7 @@ function resolveNight(g: Game, ctx: Ctx) {
     } else {
       g.heirlooms[r] = false;
       t.heirlooms.push(r);
-      t.points += 2;
+      addPoints(t, hour, 2, `Kradzież: ${room.heirloom}`);
       logEntry.theft = { room: r, thiefId: t.id };
       lines.push(`${cap(room.from)} coś zniknęło: ${room.heirloom}.`);
       note(t, hour, `Udało się: ${room.heirloom}. Masz już ${t.heirlooms.length}/3 pamiątek.`, 'info');
@@ -483,7 +506,7 @@ function resolveNight(g: Game, ctx: Ctx) {
     const c = g.night[p.id];
     if (c?.task !== 'ok') continue;
     p.stats.tasks += 1;
-    p.points += 1;
+    addPoints(p, hour, 1, 'Udana mini-gra');
     if (p.status !== 'active') { ghostDone += 1; continue; }
     if (p.role === 'zabojca') continue;
     const subject = executor && attacked ? executor : fk.length ? pick(fk, rng) : null;
@@ -527,29 +550,76 @@ function tally(g: Game, voters: Player[]) {
   return { counts, cast, top, leaders };
 }
 
+/**
+ * Rozliczenie aresztu po godzinie. Zabójca zostaje; każdy inny wychodzi.
+ * Głos na zabójcę: +2. Głos na niewinnego: -1, a zabójca lub złodziej dostaje za to +1 (machlojka).
+ * Złapany złodziej oddaje łupy, a głosujący na niego dostają +1.
+ */
+function settleJail(g: Game, final: boolean): string[] {
+  const j = g.jail;
+  if (!j) return [];
+  g.jail = null;
+  const p = player(g, j.playerId);
+  if (!p) return [];
+  const hour = g.hour;
+  const voters = j.voters.map((id) => player(g, id)).filter((v): v is Player => !!v && v.id !== p.id);
+  const lines: string[] = [];
+  if (p.role === 'zabojca') {
+    for (const v of voters) { v.stats.correctVotes += 1; addPoints(v, hour, 2, `Trafny głos: ${who(p)} to zabójca`); }
+    if (!final) lines.push(`${who(p)} zostaje w areszcie. Śledztwo potwierdziło: to zabójca! Głosujący na tę osobę dostają po 2 punkty.`);
+    return lines;
+  }
+  const thief = p.role === 'zlodziej';
+  for (const v of voters) {
+    if (thief) addPoints(v, hour, 1, `Złapany złodziej: ${who(p)}`);
+    else if (isSchemer(v)) addPoints(v, hour, 1, `Machlojka: niewinna osoba w areszcie (${who(p)})`);
+    else addPoints(v, hour, -1, `Głos na niewinną osobę: ${who(p)}`);
+  }
+  let loot = 0;
+  if (thief && p.heirlooms.length) {
+    loot = p.heirlooms.length;
+    for (const r of p.heirlooms) g.heirlooms[r] = true;
+    p.heirlooms = [];
+    addPoints(p, hour, -2 * loot, `Oddane łupy (${loot})`);
+  }
+  if (!final) {
+    p.status = 'active';
+    note(p, hour, 'Wychodzisz z aresztu i wracasz do stołu. Znowu wybierasz pokój i głosujesz.', 'info');
+    lines.push(thief
+      ? `${who(p)} wychodzi z aresztu. To nie zabójca, tylko złodziej: oddaje łupy (${loot}). Głosujący dostają po 1 punkcie.`
+      : `${who(p)} wychodzi z aresztu: to nie zabójca. Głosujący na tę osobę tracą po 1 punkcie.`);
+  }
+  return lines;
+}
+
 function resolveAccusation(g: Game) {
+  // Najpierw rozliczamy areszt z poprzedniej godziny
+  const lines = settleJail(g, false);
   const voters = active(g);
   const { counts, cast, top, leaders } = tally(g, voters);
   for (const [id, n] of Object.entries(counts)) { const p = player(g, id); if (p) p.stats.votesReceived += n; }
   const entry = g.log.find((l) => l.hour === g.hour);
+  const record: VoteRecord = { hour: g.hour, kind: 'accusation', votes: { ...g.votes } };
+  g.voteLog.push(record);
+  let text: string;
   if (top > 0 && leaders.length === 1 && top > cast / 2) {
     const target = player(g, leaders[0])!;
     target.status = 'arrested';
+    record.arrestedId = target.id;
     if (entry) entry.arrestedId = target.id;
-    note(target, g.hour, 'Trafiłeś do aresztu. Dalej robisz zadania i głosujesz o świcie.', 'info');
+    g.jail = { playerId: target.id, hour: g.hour, voters: voters.filter((v) => g.votes[v.id] === target.id).map((v) => v.id) };
+    note(target, g.hour, 'Trafiłeś do aresztu. Robisz dalej zadania, ale nie wybierasz pokoju i nie głosujesz. Jeśli nie jesteś zabójcą, wyjdziesz za godzinę.', 'info');
     if (target.role === 'blazen') target.jesterWin = true;
-    if (target.role === 'zabojca') {
-      for (const v of voters) if (g.votes[v.id] === target.id) { v.stats.correctVotes += 1; v.points += 2; }
-    }
     if (freeKillers(g).length === 0) {
       g.pendingWinner = 'rodzina';
-      g.verdict = { text: `${who(target)} trafia do aresztu. To był ostatni zabójca na wolności!` };
+      text = `${who(target)} trafia do aresztu. To był ostatni zabójca na wolności!`;
     } else {
-      g.verdict = { text: `${who(target)} trafia do aresztu. Kim był naprawdę, okaże się o świcie.` };
+      text = `${who(target)} trafia do aresztu. Jeśli to nie zabójca, wyjdzie za godzinę, a głosujący stracą po 1 punkcie.`;
     }
   } else {
-    g.verdict = { text: leaders.length > 1 && top > 0 ? 'Remis w głosowaniu. Nikt nie trafia do aresztu.' : 'Nikt nie trafia do aresztu.' };
+    text = leaders.length > 1 && top > 0 ? 'Remis w głosowaniu. Nikt nie trafia do aresztu.' : 'Nikt nie trafia do aresztu.';
   }
+  g.verdict = { text, lines };
 }
 
 function resolveDawn(g: Game, ctx: Ctx) {
@@ -558,14 +628,23 @@ function resolveDawn(g: Game, ctx: Ctx) {
   for (const [id, n] of Object.entries(counts)) { const p = player(g, id); if (p) p.stats.votesReceived += n; }
   for (const v of g.players) {
     const t = g.votes[v.id];
-    if (t && free.has(t)) { v.stats.correctVotes += 1; v.points += 2; }
+    if (t && free.has(t)) { v.stats.correctVotes += 1; addPoints(v, g.hour, 2, `Trafny głos o świcie: ${who(player(g, t)!)}`); }
   }
   let dawnTargetId: string | undefined;
   if (top > 0 && leaders.length === 1) {
     dawnTargetId = leaders[0];
     const t = player(g, dawnTargetId)!;
     if (t.role === 'zabojca' && t.status === 'active') t.status = 'arrested';
+    if (t.role !== 'zabojca') {
+      // Wskazanie niewinnej osoby o świcie: kara albo machlojka
+      for (const v of g.players) {
+        if (g.votes[v.id] !== t.id) continue;
+        if (isSchemer(v)) addPoints(v, g.hour, 1, `Machlojka: o świcie wskazano niewinną osobę (${who(t)})`);
+        else addPoints(v, g.hour, -1, `Głos o świcie na niewinną osobę: ${who(t)}`);
+      }
+    }
   }
+  g.voteLog.push({ hour: g.hour, kind: 'dawn', votes: { ...g.votes }, arrestedId: dawnTargetId });
   const stillFree = freeKillers(g).length;
   const reason = stillFree === 0
     ? 'O świcie rodzina wskazała ostatniego zabójcę.'
@@ -576,13 +655,17 @@ function resolveDawn(g: Game, ctx: Ctx) {
 }
 
 function finish(g: Game, winner: 'rodzina' | 'zabojcy', reason: string, ctx: Ctx, dawnTargetId?: string) {
+  settleJail(g, true);
   const neutralWinners: string[] = [];
+  const h = g.hour;
   for (const p of g.players) {
     const faction = p.role ? ROLES[p.role].faction : 'rodzina';
-    if ((faction === 'rodzina' && winner === 'rodzina') || (faction === 'zabojcy' && winner === 'zabojcy')) p.points += 5;
-    if (p.role === 'zlodziej' && p.heirlooms.length >= 3 && p.status === 'active') { p.points += 5; neutralWinners.push(p.id); }
-    if (p.role === 'blazen' && p.jesterWin) { p.points += 5; neutralWinners.push(p.id); }
-    if (p.status === 'active') p.points += 2;
+    if (faction === 'rodzina' && winner === 'rodzina') addPoints(p, h, 5, 'Wygrana rodziny');
+    if (faction === 'zabojcy' && winner === 'zabojcy') addPoints(p, h, 5, 'Wygrana zabójców');
+    if (p.role === 'zlodziej' && p.heirlooms.length >= 3 && p.status === 'active') { addPoints(p, h, 5, 'Wygrana złodzieja: 3 pamiątki'); neutralWinners.push(p.id); }
+    if (p.role === 'blazen' && p.jesterWin) { addPoints(p, h, 5, 'Wygrana błazna: areszt'); neutralWinners.push(p.id); }
+    const caught = p.role === 'zabojca' && p.status === 'arrested';
+    if (p.status !== 'dead' && !caught) addPoints(p, h, 2, 'Przetrwanie do końca');
   }
   const titles: Result['titles'] = [];
   const best = (arr: Player[], score: (p: Player) => number, min = 1) => {
@@ -621,7 +704,7 @@ export function applyAction(g: Game, playerId: string | null, a: Action, ctx: Ct
       const p: Player = {
         id: ctx.makeId(), token: ctx.makeId() + ctx.makeId(), name, joinedAt: ctx.now,
         characterId: null, role: null, status: 'active', ready: false, points: 0,
-        stats: { tasks: 0, correctVotes: 0, votesReceived: 0 }, heirlooms: [], notes: [], lastProtected: null,
+        pointsLog: [], stats: { tasks: 0, correctVotes: 0, votesReceived: 0 }, heirlooms: [], notes: [], lastProtected: null,
       };
       g.players.push(p);
       if (!g.hostId) g.hostId = p.id;
@@ -655,7 +738,7 @@ export function applyAction(g: Game, playerId: string | null, a: Action, ctx: Ct
       return {};
     }
     case 'ready': {
-      if (!['prolog', 'morning', 'discussion', 'verdict'].includes(g.phase)) return {};
+      if (!['rules', 'prolog', 'morning', 'discussion', 'verdict'].includes(g.phase)) return {};
       if (!mustAct(g, me)) return {};
       me.ready = true;
       advance(g, ctx);
@@ -738,10 +821,12 @@ export function applyAction(g: Game, playerId: string | null, a: Action, ctx: Ct
       g.publicClues = [];
       g.morning = null;
       g.verdict = null;
+      g.jail = null;
+      g.voteLog = [];
       g.log = [];
       g.npcs = [];
       for (const p of g.players) {
-        p.characterId = null; p.role = null; p.status = 'active'; p.ready = false; p.points = 0;
+        p.characterId = null; p.role = null; p.status = 'active'; p.ready = false; p.points = 0; p.pointsLog = [];
         p.stats = { tasks: 0, correctVotes: 0, votesReceived: 0 }; p.heirlooms = []; p.notes = []; p.lastProtected = null; p.jesterWin = false;
       }
       return {};
@@ -757,6 +842,43 @@ function charPublic(c: Character | undefined) {
     id: c.id, name: c.name, who: c.who,
     attrs: CATEGORIES.map((cat) => ({ cat, label: attrOf(c, cat).label })),
   };
+}
+
+const ROLE_ORDER: RoleId[] = ['zabojca', 'zlodziej', 'blazen', 'detektyw', 'kamerdyner', 'lekarz', 'krewny'];
+
+/** Co będzie w tej grze: role z liczbami i podstawowe ustawienia (pokazywane przed startem). */
+function setupInfo(g: Game) {
+  const n = g.players.length;
+  if (n < MIN_PLAYERS) return null;
+  const death = g.settings.death && deathAllowed(g);
+  const counts: Record<string, number> = {};
+  for (const r of roleDistribution(n, death)) counts[r] = (counts[r] || 0) + 1;
+  return {
+    players: n,
+    death,
+    hours: g.phase === 'lobby' ? (g.settings.mode === '30' ? 4 : 6) : g.hours,
+    nightSeconds: Math.round(NIGHT_SECONDS * (g.settings.calm ? CALM_MULT : 1)),
+    roles: ROLE_ORDER.filter((r) => counts[r]).map((r) => ({
+      id: r, name: ROLES[r].name, count: counts[r], faction: ROLES[r].faction, does: ROLES[r].does, wins: ROLES[r].wins,
+    })),
+  };
+}
+
+/** Jawne głosy: kto na kogo. */
+function voteView(g: Game, rec: VoteRecord) {
+  const byTarget: Record<string, string[]> = {};
+  const none: string[] = [];
+  for (const [from, to] of Object.entries(rec.votes)) {
+    const f = player(g, from);
+    if (!f) continue;
+    if (to === 'none') { none.push(who(f)); continue; }
+    (byTarget[to] || (byTarget[to] = [])).push(who(f));
+  }
+  const rows = Object.entries(byTarget)
+    .map(([to, voters]) => { const t = player(g, to); return { target: t ? who(t) : '?', voters }; })
+    .sort((a, b) => b.voters.length - a.voters.length);
+  const arrested = rec.arrestedId ? player(g, rec.arrestedId) : undefined;
+  return { clock: hourLabel(g, rec.hour), kind: rec.kind, rows, none, arrested: arrested ? who(arrested) : null };
 }
 
 export function publicView(g: Game, now: number) {
@@ -796,6 +918,8 @@ export function publicView(g: Game, now: number) {
     waitingCount: g.players.filter((p) => mustAct(g, p) && !actDone(g, p)).length,
     actCount: g.players.filter((p) => mustAct(g, p)).length,
     verdict: g.phase === 'verdict' ? g.verdict : null,
+    setup: setupInfo(g),
+    voteHistory: (g.voteLog || []).map((r) => voteView(g, r)),
     result: ended && g.result ? endReveal(g) : null,
   };
 }
@@ -867,6 +991,7 @@ export function playerView(g: Game, playerId: string, now: number) {
       status: me.status,
       ready: me.ready,
       points: me.points,
+      pointsLog: (me.pointsLog || []).map((e) => ({ clock: e.hour > 0 ? hourLabel(g, e.hour) : '', pts: e.pts, why: e.why })),
       role: role ? { id: role.id, name: role.name, faction: role.faction, does: role.does, wins: role.wins } : null,
       character: c ? { ...charPublic(c), secret: c.secret } : null,
       heirlooms: me.heirlooms.length,

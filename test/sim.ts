@@ -21,7 +21,10 @@ const SECRET_WORDS = ['zabojca', 'Zabójca', 'token', 'secret', 'Twoi wspólnicy
 
 function assertNoLeak(g: Game, now: number, label: string) {
   if (g.phase === 'end') return;
-  const pub = JSON.stringify(publicView(g, now));
+  // Zestaw ról tej gry (setup) jest jawny z założenia; reszta widoku nie może zdradzać ról
+  const { setup, ...rest } = publicView(g, now) as Record<string, unknown>;
+  check(g.players.length < 3 || !!setup, `${label}: setup visible`);
+  const pub = JSON.stringify(rest);
   for (const w of SECRET_WORDS) check(!pub.includes(w), `${label}: public view leaks "${w}" in phase ${g.phase}`);
   for (const p of g.players) check(!pub.includes(p.token), `${label}: public view leaks token`);
   for (const c of CHARACTERS) check(!pub.includes(c.secret), `${label}: public view leaks character secret`);
@@ -49,7 +52,7 @@ function simulate(seed: number, n: number, death: boolean, mode: '30' | '60', st
   else check(!!settingsRes.error && g.settings.death === false, 'death blocked below 5 players');
   const startRes = applyAction(g, host, { type: 'start' }, ctx());
   check(!startRes.error, 'start ok: ' + startRes.error);
-  check(g.phase === 'prolog', 'prolog after start');
+  check(g.phase === 'rules', 'rules screen after start');
   check(g.players.filter((p) => p.role === 'zabojca').length >= 1, 'has killer');
 
   let steps = 0;
@@ -68,7 +71,7 @@ function simulate(seed: number, n: number, death: boolean, mode: '30' | '60', st
     for (const p of g.players) {
       if (rng() < 0.08) continue; // ktoś się zagapił
       const view = playerView(g, p.id, now).me!;
-      if (phase === 'prolog' || phase === 'morning' || phase === 'discussion' || phase === 'verdict') {
+      if (phase === 'rules' || phase === 'prolog' || phase === 'morning' || phase === 'discussion' || phase === 'verdict') {
         applyAction(g, p.id, { type: 'ready' }, ctx());
       } else if (phase === 'night' && view.night) {
         const nv = view.night;
@@ -112,6 +115,14 @@ function simulate(seed: number, n: number, death: boolean, mode: '30' | '60', st
   check(g.hour <= g.hours, `${label}: hour within limit`);
   // Każdy zamach ma sprawcę, który jest zabójcą
   for (const l of g.log) if (l.executorId) check(g.players.find((p) => p.id === l.executorId)?.role === 'zabojca', `${label}: executor is killer`);
+  // Punkty zgadzają się z listą powodów
+  for (const p of g.players) check(p.points === p.pointsLog.reduce((a, e) => a + e.pts, 0), `${label}: points match log`);
+  // Niewinny siedzi w areszcie najwyżej godzinę: na koniec w areszcie tylko zabójcy albo zamknięci w ostatniej godzinie
+  for (const p of g.players) {
+    if (p.status !== 'arrested' || p.role === 'zabojca') continue;
+    check(g.voteLog.some((r) => r.kind === 'accusation' && r.arrestedId === p.id && r.hour >= g.hour - 1), `${label}: innocent released after an hour`);
+  }
+  check(g.jail === null, `${label}: jail settled at the end`);
   // Martwi gracze tylko przy włączonej śmierci
   if (!death || n < 5) check(!g.players.some((p) => p.status === 'dead'), `${label}: nobody dies with death off`);
   return g;
