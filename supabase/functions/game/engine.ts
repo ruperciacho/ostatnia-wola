@@ -129,6 +129,13 @@ function roomById(id: string | undefined) { return ROOMS.find((r) => r.id === id
 function attrOf(c: Character, cat: Category) { return ATTRS[cat].find((v) => v.id === c[cat])!; }
 function charName(p: Player): string { const c = charById(p.characterId); return c ? c.name : p.name; }
 function who(p: Player): string { return `${charName(p)} (${p.name})`; }
+/** Forma męska albo żeńska według płci postaci gracza (np. „zginąłeś” / „zginęłaś”). */
+function gf(p: Player, m: string, f: string): string { return charById(p.characterId)?.f ? f : m; }
+function npcFemale(id: string): boolean {
+  const s = SERVANTS.find((x) => x.id === id);
+  if (s) return s.f;
+  return !!charById(id)?.f;
+}
 
 export function hourLabel(g: Game, hour: number): string {
   const h = (((4 - g.hours + hour - 1) % 24) + 24) % 24;
@@ -402,18 +409,18 @@ function resolveNight(g: Game, ctx: Ctx) {
       attacked = true;
       if (medic) {
         logEntry.failed = 'lekarz';
-        lines.push('Ktoś próbował w nocy zabić, ale lekarz był szybszy.');
+        lines.push('W nocy ktoś próbował zabić, ale lekarz zdążył na czas.');
         const seen = attrOf(charById(executor.characterId)!, pick(CATEGORIES, rng)).seen;
-        note(victim, hour, `Ktoś cię zaatakował, ale lekarz zdążył. Zapamiętałeś: ${seen}.`);
+        note(victim, hour, `Ktoś cię zaatakował, ale lekarz zdążył. ${gf(victim, 'Zapamiętałeś', 'Zapamiętałaś')}: ${seen}.`);
       } else if (others >= 3) {
         logEntry.failed = 'tlok';
-        lines.push(`Ktoś próbował zabić ${room.loc}, ale było tam zbyt tłoczno.`);
+        lines.push(`${cap(room.loc)} ktoś próbował zabić, ale było tam za tłoczno.`);
       } else {
         victim.status = 'dead';
         logEntry.victim = { name: who(victim), room: attackRoom, playerId: victim.id };
-        lines.push(`${cap(room.loc)} znaleziono: ${who(victim)}.`);
+        lines.push(`${who(victim)} nie żyje. ${gf(victim, 'Znaleziono go', 'Znaleziono ją')} ${room.loc}.`);
         lines.push(pick(room.deaths, rng));
-        note(victim, hour, 'Zginąłeś. Dalej grasz jako duch: rób zadania, a duchy odsłonią poszlaki.', 'info');
+        note(victim, hour, `${gf(victim, 'Zginąłeś', 'Zginęłaś')}. Grasz dalej jako duch: grasz w mini-gry i głosujesz o świcie. Co 3 udane mini-gry duchów i aresztantów odsłaniają poszlakę.`, 'info');
       }
     } else {
       const npc = g.npcs.find((n) => n.id === targetId)!;
@@ -422,7 +429,7 @@ function resolveNight(g: Game, ctx: Ctx) {
       npc.alive = false;
       attacked = true;
       logEntry.victim = { name: npc.name, room: attackRoom };
-      lines.push(`${cap(room.loc)} znaleziono: ${npc.name}.`);
+      lines.push(`${npc.name} nie żyje. ${npcFemale(npc.id) ? 'Znaleziono ją' : 'Znaleziono go'} ${room.loc}.`);
       lines.push(pick(room.deaths, rng));
     }
   }
@@ -445,7 +452,7 @@ function resolveNight(g: Game, ctx: Ctx) {
         const w = player(g, pid)!;
         if (w.role === 'zabojca') continue;
         const seen = attrOf(exChar, pick(CATEGORIES, rng)).seen;
-        note(w, hour, `Byłeś ${roomById(attackRoom)!.loc}, gdy doszło do ataku. W ciemności zauważyłeś: ${seen}.`);
+        note(w, hour, `${gf(w, 'Byłeś', 'Byłaś')} ${roomById(attackRoom)!.loc}, gdy doszło do ataku. W ciemności ${gf(w, 'zauważyłeś', 'zauważyłaś')}: ${seen}.`);
       }
     }
     newClues.push({ hour, text: attrOf(exChar, pick(CATEGORIES, rng)).clue, fake: false, source: 'scena' });
@@ -477,14 +484,14 @@ function resolveNight(g: Game, ctx: Ctx) {
     if (!g.heirlooms[r]) {
       note(t, hour, `${cap(room.loc)} nie ma już nic do ukradzenia.`, 'info');
     } else if (others > 1) {
-      note(t, hour, `${cap(room.loc)} było za dużo ludzi, nic nie ukradłeś.`, 'info');
+      note(t, hour, `${cap(room.loc)} było za dużo ludzi, nic nie ${gf(t, 'ukradłeś', 'ukradłaś')}.`, 'info');
     } else {
       g.heirlooms[r] = false;
       t.heirlooms.push(r);
       addPoints(t, hour, 2, `Kradzież: ${room.heirloom}`);
       logEntry.theft = { room: r, thiefId: t.id };
-      lines.push(`${cap(room.from)} coś zniknęło: ${room.heirloom}.`);
-      note(t, hour, `Udało się: ${room.heirloom}. Masz już ${t.heirlooms.length}/3 pamiątek.`, 'info');
+      lines.push(`${cap(room.from)} zniknęła pamiątka: ${room.heirloom}.`);
+      note(t, hour, `Udało się: ${room.heirloom}. Pamiątki: ${t.heirlooms.length}/3.`, 'info');
     }
   }
 
@@ -493,7 +500,7 @@ function resolveNight(g: Game, ctx: Ctx) {
     const c = g.night[k.id];
     const w = c.watch && roomById(c.watch) ? c.watch : pick(ROOMS, rng).id;
     const names = presence[w].filter((id) => id !== k.id).map((id) => who(player(g, id)!));
-    note(k, hour, `Obserwowałeś: ${roomById(w)!.name}. ${names.length ? 'Byli tam: ' + names.join(', ') + '.' : 'Nikogo tam nie było.'}`);
+    note(k, hour, `Obserwowany pokój: ${roomById(w)!.name}. ${names.length ? 'Byli tam: ' + names.join(', ') + '.' : 'Nikogo tam nie było.'}`);
   }
 
   // Lekarz: zapamiętaj ostatnio chronioną osobę
@@ -513,7 +520,7 @@ function resolveNight(g: Game, ctx: Ctx) {
     if (!subject) continue;
     const label = executor && attacked ? 'Sprawca tej nocy' : fk.length > 1 ? 'Jeden z zabójców' : 'Zabójca';
     const cats = shuffle(CATEGORIES, rng).slice(0, p.role === 'detektyw' ? 2 : 1);
-    for (const text of fragment(charById(subject.characterId)!, label, cats, rng)) note(p, hour, `Z zadania: ${text}`);
+    for (const text of fragment(charById(subject.characterId)!, label, cats, rng)) note(p, hour, `Z mini-gry: ${text}`);
   }
 
   // Tablica duchów i aresztantów
@@ -521,8 +528,8 @@ function resolveNight(g: Game, ctx: Ctx) {
   while (g.ghostProgress >= 3 && fk.length) {
     g.ghostProgress -= 3;
     const k = pick(fk, rng);
-    const seen = attrOf(charById(k.characterId)!, pick(CATEGORIES, rng)).seen;
-    newClues.push({ hour, text: `Duchy i aresztanci szepczą: jeden z zabójców na wolności ma ${seen}.`, fake: false, source: 'duchy' });
+    const has = attrOf(charById(k.characterId)!, pick(CATEGORIES, rng)).has;
+    newClues.push({ hour, text: `Duchy i aresztanci szepczą: jeden z zabójców na wolności ${has}.`, fake: false, source: 'duchy' });
   }
 
   if (!attacked) lines.push('Noc minęła spokojnie. Zbyt spokojnie.');
@@ -572,7 +579,7 @@ function settleJail(g: Game, final: boolean): string[] {
   const thief = p.role === 'zlodziej';
   for (const v of voters) {
     if (thief) addPoints(v, hour, 1, `Złapany złodziej: ${who(p)}`);
-    else if (isSchemer(v)) addPoints(v, hour, 1, `Machlojka: niewinna osoba w areszcie (${who(p)})`);
+    else if (isSchemer(v)) addPoints(v, hour, 1, `Machlojka: w areszcie niewinna osoba, ${who(p)}`);
     else addPoints(v, hour, -1, `Głos na niewinną osobę: ${who(p)}`);
   }
   let loot = 0;
@@ -580,7 +587,7 @@ function settleJail(g: Game, final: boolean): string[] {
     loot = p.heirlooms.length;
     for (const r of p.heirlooms) g.heirlooms[r] = true;
     p.heirlooms = [];
-    addPoints(p, hour, -2 * loot, `Oddane łupy (${loot})`);
+    addPoints(p, hour, -2 * loot, `Oddane łupy: ${loot}`);
   }
   if (!final) {
     p.status = 'active';
@@ -608,7 +615,7 @@ function resolveAccusation(g: Game) {
     record.arrestedId = target.id;
     if (entry) entry.arrestedId = target.id;
     g.jail = { playerId: target.id, hour: g.hour, voters: voters.filter((v) => g.votes[v.id] === target.id).map((v) => v.id) };
-    note(target, g.hour, 'Trafiłeś do aresztu. Robisz dalej zadania, ale nie wybierasz pokoju i nie głosujesz. Jeśli nie jesteś zabójcą, wyjdziesz za godzinę.', 'info');
+    note(target, g.hour, `${gf(target, 'Trafiłeś', 'Trafiłaś')} do aresztu. Grasz dalej w mini-gry, ale nie wybierasz pokoju i nie głosujesz. Jeśli nie jesteś zabójcą, wyjdziesz za godzinę.`, 'info');
     if (target.role === 'blazen') target.jesterWin = true;
     if (freeKillers(g).length === 0) {
       g.pendingWinner = 'rodzina';
@@ -639,7 +646,7 @@ function resolveDawn(g: Game, ctx: Ctx) {
       // Wskazanie niewinnej osoby o świcie: kara albo machlojka
       for (const v of g.players) {
         if (g.votes[v.id] !== t.id) continue;
-        if (isSchemer(v)) addPoints(v, g.hour, 1, `Machlojka: o świcie wskazano niewinną osobę (${who(t)})`);
+        if (isSchemer(v)) addPoints(v, g.hour, 1, `Machlojka: o świcie wskazano niewinną osobę, ${who(t)}`);
         else addPoints(v, g.hour, -1, `Głos o świcie na niewinną osobę: ${who(t)}`);
       }
     }
@@ -676,9 +683,9 @@ function finish(g: Game, winner: 'rodzina' | 'zabojcy', reason: string, ctx: Ctx
   const sherlock = best(g.players, (p) => p.stats.correctVotes);
   if (sherlock) titles.push({ title: 'Sherlock', playerId: sherlock.id, why: plural(sherlock.stats.correctVotes, 'trafny głos', 'trafne głosy', 'trafnych głosów') });
   const worker = best(g.players, (p) => p.stats.tasks);
-  if (worker) titles.push({ title: 'Dziedzic pracowitości', playerId: worker.id, why: plural(worker.stats.tasks, 'udane zadanie', 'udane zadania', 'udanych zadań') });
+  if (worker) titles.push({ title: 'Dziedzic pracowitości', playerId: worker.id, why: plural(worker.stats.tasks, 'udana mini-gra', 'udane mini-gry', 'udanych mini-gier') });
   const suspect = best(g.players.filter((p) => p.role !== 'zabojca'), (p) => p.stats.votesReceived);
-  if (suspect) titles.push({ title: 'Najbardziej podejrzany niewinny', playerId: suspect.id, why: `${plural(suspect.stats.votesReceived, 'głos', 'głosy', 'głosów')} przeciw sobie` });
+  if (suspect) titles.push({ title: 'Kozioł ofiarny', playerId: suspect.id, why: `${plural(suspect.stats.votesReceived, 'głos', 'głosy', 'głosów')} przeciw sobie` });
   // Kamienna twarz tylko dla zabójcy, którego nie złapano
   const killers = g.players.filter((p) => p.role === 'zabojca' && p.status !== 'arrested');
   if (killers.length) {
@@ -746,7 +753,7 @@ export function applyAction(g: Game, playerId: string | null, a: Action, ctx: Ct
     }
     case 'night': {
       if (g.phase !== 'night') return { error: 'To nie jest pora nocy.' };
-      if (me.status !== 'active') return { error: 'Jako duch lub aresztant robisz tylko zadanie.' };
+      if (me.status !== 'active') return { error: 'Jako duch albo w areszcie grasz tylko w mini-grę.' };
       const c = g.night[me.id] || (g.night[me.id] = {});
       if (a.room !== undefined) {
         if (!roomById(a.room)) return { error: 'Nie ma takiego pokoju.' };
@@ -772,7 +779,7 @@ export function applyAction(g: Game, playerId: string | null, a: Action, ctx: Ct
       return {};
     }
     case 'task': {
-      if (g.phase !== 'night') return { error: 'Zadania robi się w nocy.' };
+      if (g.phase !== 'night') return { error: 'Mini-gry są tylko w nocy.' };
       const c = g.night[me.id] || (g.night[me.id] = {});
       if (c.task) return {};
       if (me.status === 'active') {
@@ -839,7 +846,7 @@ export function applyAction(g: Game, playerId: string | null, a: Action, ctx: Ct
 function charPublic(c: Character | undefined) {
   if (!c) return null;
   return {
-    id: c.id, name: c.name, who: c.who,
+    id: c.id, name: c.name, who: c.who, f: c.f,
     attrs: CATEGORIES.map((cat) => ({ cat, label: attrOf(c, cat).label })),
   };
 }
@@ -945,7 +952,7 @@ function endReveal(g: Game) {
       executor: name(l.executorId),
       victim: l.victim ? `${l.victim.name} (${roomById(l.victim.room)?.name})` : null,
       failed: l.failed ?? null,
-      theft: l.theft ? `${name(l.theft.thiefId)} ukradł: ${roomById(l.theft.room)?.heirloom}` : null,
+      theft: l.theft ? `kradzież: ${roomById(l.theft.room)?.heirloom}, sprawca: ${name(l.theft.thiefId)}` : null,
       arrested: name(l.arrestedId) ?? null,
     })),
   };

@@ -11,6 +11,8 @@ export interface AttrValue {
   seen: string;
   /** Fragment negatywny: „Sprawca …”. */
   not: string;
+  /** Fragment twierdzący: „jeden z zabójców …”. */
+  has: string;
 }
 
 export const CATEGORIES: Category[] = ['kolor', 'dodatek', 'zapach'];
@@ -23,22 +25,22 @@ export const CATEGORY_LABEL: Record<Category, string> = {
 
 export const ATTRS: Record<Category, AttrValue[]> = {
   kolor: [
-    { id: 'bordo', label: 'bordo', clue: 'Na miejscu zbrodni zostały nitki w kolorze bordo.', seen: 'ubranie w kolorze bordo', not: 'nie nosi koloru bordo' },
-    { id: 'zielen', label: 'butelkowa zieleń', clue: 'Na miejscu zbrodni zostały nitki w kolorze butelkowej zieleni.', seen: 'ubranie w kolorze butelkowej zieleni', not: 'nie nosi butelkowej zieleni' },
-    { id: 'granat', label: 'granat', clue: 'Na miejscu zbrodni zostały granatowe nitki.', seen: 'granatowe ubranie', not: 'nie nosi granatu' },
-    { id: 'musztard', label: 'musztardowy', clue: 'Na miejscu zbrodni zostały musztardowe nitki.', seen: 'musztardowe ubranie', not: 'nie nosi musztardowego koloru' },
+    { id: 'bordo', label: 'bordo', clue: 'Na miejscu zbrodni zostały nitki w kolorze bordo.', seen: 'ubranie w kolorze bordo', not: 'nie nosi ubrania w kolorze bordo', has: 'nosi ubranie w kolorze bordo' },
+    { id: 'zielen', label: 'butelkowa zieleń', clue: 'Na miejscu zbrodni zostały nitki w kolorze butelkowej zieleni.', seen: 'ubranie w kolorze butelkowej zieleni', not: 'nie nosi butelkowej zieleni', has: 'nosi ubranie w kolorze butelkowej zieleni' },
+    { id: 'granat', label: 'granat', clue: 'Na miejscu zbrodni zostały granatowe nitki.', seen: 'granatowe ubranie', not: 'nie nosi granatowego ubrania', has: 'nosi granatowe ubranie' },
+    { id: 'musztard', label: 'musztardowy', clue: 'Na miejscu zbrodni zostały musztardowe nitki.', seen: 'musztardowe ubranie', not: 'nie nosi musztardowego ubrania', has: 'nosi musztardowe ubranie' },
   ],
   dodatek: [
-    { id: 'kapelusz', label: 'kapelusz', clue: 'Na podłodze leżało pióro od kapelusza.', seen: 'kapelusz', not: 'nie nosi kapelusza' },
-    { id: 'okulary', label: 'okulary', clue: 'Na podłodze leżało szkiełko od okularów.', seen: 'błysk okularów', not: 'nie nosi okularów' },
-    { id: 'sygnet', label: 'sygnet', clue: 'Na klamce został odcisk sygnetu.', seen: 'sygnet na palcu', not: 'nie nosi sygnetu' },
-    { id: 'szalik', label: 'szalik', clue: 'Na gwoździu przy drzwiach wisiała nitka z szalika.', seen: 'powiewający szalik', not: 'nie nosi szalika' },
+    { id: 'kapelusz', label: 'kapelusz', clue: 'Na podłodze leżało pióro od kapelusza.', seen: 'kapelusz', not: 'nie nosi kapelusza', has: 'nosi kapelusz' },
+    { id: 'okulary', label: 'okulary', clue: 'Na podłodze leżało szkiełko od okularów.', seen: 'błysk okularów', not: 'nie nosi okularów', has: 'nosi okulary' },
+    { id: 'sygnet', label: 'sygnet', clue: 'Na klamce został odcisk sygnetu.', seen: 'sygnet na palcu', not: 'nie nosi sygnetu', has: 'nosi sygnet' },
+    { id: 'szalik', label: 'szalik', clue: 'Na gwoździu przy drzwiach wisiała nitka z szalika.', seen: 'powiewający szalik', not: 'nie nosi szalika', has: 'nosi szalik' },
   ],
   zapach: [
-    { id: 'naftalina', label: 'naftalina', clue: 'W powietrzu unosił się zapach naftaliny.', seen: 'zapach naftaliny', not: 'nie pachnie naftaliną' },
-    { id: 'cygara', label: 'cygara', clue: 'W powietrzu unosił się zapach cygar.', seen: 'zapach cygar', not: 'nie pachnie cygarami' },
-    { id: 'lawenda', label: 'lawenda', clue: 'W powietrzu unosił się zapach lawendy.', seen: 'zapach lawendy', not: 'nie pachnie lawendą' },
-    { id: 'czosnek', label: 'czosnek', clue: 'W powietrzu unosił się zapach czosnku.', seen: 'zapach czosnku', not: 'nie pachnie czosnkiem' },
+    { id: 'naftalina', label: 'naftalina', clue: 'W powietrzu unosił się zapach naftaliny.', seen: 'zapach naftaliny', not: 'nie pachnie naftaliną', has: 'pachnie naftaliną' },
+    { id: 'cygara', label: 'cygara', clue: 'W powietrzu unosił się zapach cygar.', seen: 'zapach cygar', not: 'nie pachnie cygarami', has: 'pachnie cygarami' },
+    { id: 'lawenda', label: 'lawenda', clue: 'W powietrzu unosił się zapach lawendy.', seen: 'zapach lawendy', not: 'nie pachnie lawendą', has: 'pachnie lawendą' },
+    { id: 'czosnek', label: 'czosnek', clue: 'W powietrzu unosił się zapach czosnku.', seen: 'zapach czosnku', not: 'nie pachnie czosnkiem', has: 'pachnie czosnkiem' },
   ],
 };
 
@@ -50,31 +52,33 @@ export interface Character {
   dodatek: string;
   zapach: string;
   secret: string;
+  /** Postać kobieca: telefon zwraca się formami żeńskimi. */
+  f: boolean;
 }
 
 // Każda wartość cechy występuje u 3 postaci, a każda trójka cech jest inna.
 export const CHARACTERS: Character[] = [
-  { id: 'grazyna', name: 'Ciotka Grażyna', who: 'siostra Henryka, organizuje wszystkie rodzinne pogrzeby', kolor: 'bordo', dodatek: 'kapelusz', zapach: 'naftalina', secret: 'Zamówiłaś stypę na 120 osób. Na dziś.' },
-  { id: 'seweryn', name: 'Kuzyn Seweryn', who: '„inwestor”', kolor: 'zielen', dodatek: 'okulary', zapach: 'cygara', secret: 'Przegrałeś 200 tys. pożyczone od Henryka na krypto z kaczką w logo.' },
-  { id: 'bozena', name: 'Synowa Bożena', who: 'żona najstarszego syna', kolor: 'granat', dodatek: 'sygnet', zapach: 'lawenda', secret: 'Sprzedajesz rodowe srebra w internecie i podmieniasz je na plastik.' },
-  { id: 'zenon', name: 'Ogrodnik Zenon', who: 'pracuje we dworze od 40 lat', kolor: 'musztard', dodatek: 'szalik', zapach: 'czosnek', secret: 'Pod różami zakopałeś trzy poprzednie testamenty.' },
-  { id: 'halinka', name: 'Pielęgniarka Halinka', who: 'opiekunka Henryka', kolor: 'bordo', dodatek: 'okulary', zapach: 'lawenda', secret: 'Od roku jesteś potajemnie żoną Henryka.' },
-  { id: 'dzastin', name: 'Wnuk Dżastin', who: 'influencer, 312 obserwujących', kolor: 'zielen', dodatek: 'sygnet', zapach: 'czosnek', secret: 'Transmitowałeś kolację na żywo, łącznie ze śmiercią dziadka.' },
-  { id: 'kazimierz', name: 'Major Kazimierz', who: '„emerytowany wojskowy”', kolor: 'granat', dodatek: 'szalik', zapach: 'naftalina', secret: 'Nigdy nie byłeś w wojsku, mundur kupiłeś w internecie.' },
-  { id: 'mirek', name: 'Szwagier Mirek', who: '„złota rączka”', kolor: 'musztard', dodatek: 'kapelusz', zapach: 'cygara', secret: 'Henryk przyłapał cię na podrabianiu jego podpisu.' },
-  { id: 'klaudia', name: 'Pasierbica Klaudia', who: 'nosi futro po babci', kolor: 'bordo', dodatek: 'sygnet', zapach: 'naftalina', secret: 'Nie jesteś pasierbicą i nikt nie wie, kim jesteś.' },
-  { id: 'nikola', name: 'Prawnuczka Nikola', who: 'robi podcast true crime', kolor: 'zielen', dodatek: 'szalik', zapach: 'cygara', secret: 'Twojemu podcastowi brakuje drugiego trupa do odcinka.' },
-  { id: 'jadzia', name: 'Sąsiadka Jadzia', who: 'zza płotu, zawsze wszystko widzi', kolor: 'granat', dodatek: 'kapelusz', zapach: 'lawenda', secret: 'Od 30 lat podkradasz Henrykowi prąd.' },
-  { id: 'ambrozy', name: 'Profesor Ambroży', who: 'historyk sztuki, wycenia pamiątki', kolor: 'musztard', dodatek: 'okulary', zapach: 'czosnek', secret: 'Połowa rodowych pamiątek to podróbki twojej roboty.' },
+  { id: 'grazyna', name: 'Ciotka Grażyna', who: 'siostra Henryka, organizuje wszystkie rodzinne pogrzeby', kolor: 'bordo', dodatek: 'kapelusz', zapach: 'naftalina', secret: 'Zamówiłaś stypę na 120 osób. Na dziś.', f: true },
+  { id: 'seweryn', name: 'Kuzyn Seweryn', who: '„inwestor”', kolor: 'zielen', dodatek: 'okulary', zapach: 'cygara', secret: 'Przegrałeś 200 tys. pożyczone od Henryka na krypto z kaczką w logo.', f: false },
+  { id: 'bozena', name: 'Synowa Bożena', who: 'żona najstarszego syna', kolor: 'granat', dodatek: 'sygnet', zapach: 'lawenda', secret: 'Sprzedajesz rodowe srebra w internecie i podmieniasz je na plastik.', f: true },
+  { id: 'zenon', name: 'Ogrodnik Zenon', who: 'pracuje we dworze od 40 lat', kolor: 'musztard', dodatek: 'szalik', zapach: 'czosnek', secret: 'Pod różami zakopałeś trzy poprzednie testamenty.', f: false },
+  { id: 'halinka', name: 'Pielęgniarka Halinka', who: 'opiekunka Henryka', kolor: 'bordo', dodatek: 'okulary', zapach: 'lawenda', secret: 'Od roku jesteś potajemnie żoną Henryka.', f: true },
+  { id: 'dzastin', name: 'Wnuk Dżastin', who: 'influencer, 312 obserwujących', kolor: 'zielen', dodatek: 'sygnet', zapach: 'czosnek', secret: 'Transmitowałeś kolację na żywo, łącznie ze śmiercią dziadka.', f: false },
+  { id: 'kazimierz', name: 'Major Kazimierz', who: '„emerytowany wojskowy”', kolor: 'granat', dodatek: 'szalik', zapach: 'naftalina', secret: 'Nigdy nie byłeś w wojsku, mundur kupiłeś w internecie.', f: false },
+  { id: 'mirek', name: 'Szwagier Mirek', who: '„złota rączka”', kolor: 'musztard', dodatek: 'kapelusz', zapach: 'cygara', secret: 'Henryk przyłapał cię na podrabianiu jego podpisu.', f: false },
+  { id: 'klaudia', name: 'Pasierbica Klaudia', who: 'nosi futro po babci', kolor: 'bordo', dodatek: 'sygnet', zapach: 'naftalina', secret: 'Nie jesteś pasierbicą i nikt nie wie, kim jesteś.', f: true },
+  { id: 'nikola', name: 'Prawnuczka Nikola', who: 'robi podcast true crime', kolor: 'zielen', dodatek: 'szalik', zapach: 'cygara', secret: 'Twojemu podcastowi brakuje drugiego trupa do odcinka.', f: true },
+  { id: 'jadzia', name: 'Sąsiadka Jadzia', who: 'zza płotu, zawsze wszystko widzi', kolor: 'granat', dodatek: 'kapelusz', zapach: 'lawenda', secret: 'Od 30 lat podkradasz Henrykowi prąd.', f: true },
+  { id: 'ambrozy', name: 'Profesor Ambroży', who: 'historyk sztuki, wycenia pamiątki', kolor: 'musztard', dodatek: 'okulary', zapach: 'czosnek', secret: 'Połowa rodowych pamiątek to podróbki twojej roboty.', f: false },
 ];
 
-export const SERVANTS: { id: string; name: string }[] = [
-  { id: 'bronia', name: 'Kucharka Bronia' },
-  { id: 'waldek', name: 'Szofer Waldek' },
-  { id: 'zosia', name: 'Pokojówka Zosia' },
-  { id: 'edek', name: 'Kominiarz Edek' },
-  { id: 'tadeusz', name: 'Organista Tadeusz' },
-  { id: 'mietek', name: 'Listonosz Mietek' },
+export const SERVANTS: { id: string; name: string; f: boolean }[] = [
+  { id: 'bronia', name: 'Kucharka Bronia', f: true },
+  { id: 'waldek', name: 'Szofer Waldek', f: false },
+  { id: 'zosia', name: 'Pokojówka Zosia', f: true },
+  { id: 'edek', name: 'Kominiarz Edek', f: false },
+  { id: 'tadeusz', name: 'Organista Tadeusz', f: false },
+  { id: 'mietek', name: 'Listonosz Mietek', f: false },
 ];
 
 export interface Room {
@@ -109,7 +113,7 @@ export const ROOMS: Room[] = [
     'Przyczyna zgonu: zamrażarka. Ktoś zamknął drzwi i zgasił światło.',
     'Przyczyna zgonu: „tylko szczypta” przyprawy z tajemniczego słoika bez etykiety.',
     'Przyczyna zgonu: lawina słoików z ogórkami z 1998 roku.',
-    'Przyczyna zgonu: galaretka z nóżkami. Patrzyła.',
+    'Przyczyna zgonu: galareta z nóżek. Patrzyła.',
     'Przyczyna zgonu: wiadro kompotu i bardzo śliska podłoga.',
   ] },
   { id: 'gabinet', name: 'Gabinet', loc: 'w Gabinecie', from: 'z Gabinetu', heirloom: 'złota papierośnica', deaths: [
@@ -174,13 +178,13 @@ export interface Role {
 }
 
 export const ROLES: Record<RoleId, Role> = {
-  krewny: { id: 'krewny', name: 'Krewny', faction: 'rodzina', does: 'Robisz zadania, zbierasz poszlaki i szukasz zabójcy.', wins: 'Wygrywasz, gdy wszyscy zabójcy zostaną złapani.' },
-  detektyw: { id: 'detektyw', name: 'Detektyw', faction: 'rodzina', does: 'Z każdego udanego zadania dostajesz dwie poszlaki zamiast jednej.', wins: 'Wygrywasz, gdy wszyscy zabójcy zostaną złapani.' },
+  krewny: { id: 'krewny', name: 'Krewny', faction: 'rodzina', does: 'Grasz w mini-gry, zbierasz poszlaki i szukasz zabójcy.', wins: 'Wygrywasz, gdy wszyscy zabójcy zostaną złapani.' },
+  detektyw: { id: 'detektyw', name: 'Detektyw', faction: 'rodzina', does: 'Za każdą udaną mini-grę dostajesz dwie poszlaki zamiast jednej.', wins: 'Wygrywasz, gdy wszyscy zabójcy zostaną złapani.' },
   kamerdyner: { id: 'kamerdyner', name: 'Kamerdyner', faction: 'rodzina', does: 'Co noc obserwujesz jeden pokój i widzisz, kto w nim był.', wins: 'Wygrywasz, gdy wszyscy zabójcy zostaną złapani.' },
   lekarz: { id: 'lekarz', name: 'Lekarz rodzinny', faction: 'rodzina', does: 'Co noc chronisz jedną osobę, ale nie tę samą dwie noce z rzędu.', wins: 'Wygrywasz, gdy wszyscy zabójcy zostaną złapani.' },
   zabojca: { id: 'zabojca', name: 'Zabójca', faction: 'zabojcy', does: 'Co noc wybierasz ofiarę. Po udanej mini-grze podrzucasz fałszywy trop na kogoś innego. Kłam i odwracaj uwagę.', wins: 'Wygrywasz, gdy o świcie przynajmniej jeden zabójca jest na wolności.' },
-  zlodziej: { id: 'zlodziej', name: 'Złodziej', faction: 'neutralni', does: 'Okradasz pokój, w którym spędzasz noc, jeśli jest tam z tobą najwyżej jedna osoba. Złapany oddaje łupy.', wins: 'Wygrywasz, gdy masz 3 pamiątki i na koniec nie siedzisz w areszcie.' },
-  blazen: { id: 'blazen', name: 'Błazen', faction: 'neutralni', does: 'Robisz zadania i zachowujesz się podejrzanie, żeby inni cię oskarżyli.', wins: 'Wygrywasz, gdy choć raz trafisz do aresztu.' },
+  zlodziej: { id: 'zlodziej', name: 'Złodziej', faction: 'neutralni', does: 'Okradasz pokój, w którym spędzasz noc, jeśli jest tam z tobą najwyżej jedna osoba. Jeśli trafisz do aresztu, oddajesz łupy.', wins: 'Wygrywasz, gdy masz 3 pamiątki i na koniec nie siedzisz w areszcie.' },
+  blazen: { id: 'blazen', name: 'Błazen', faction: 'neutralni', does: 'Grasz w mini-gry i zachowujesz się podejrzanie, żeby inni cię oskarżyli.', wins: 'Wygrywasz, gdy choć raz trafisz do aresztu.' },
 };
 
 /** Rozkład ról według liczby graczy (bez Lekarza; Lekarz zastępuje Krewnego, gdy śmierć jest włączona). */
@@ -212,6 +216,6 @@ export function roleDistribution(n: number, death: boolean): RoleId[] {
 
 export const INTRO: string[] = [
   'Listopad. Burza trwa od trzech godzin, a most do miasteczka właśnie odpłynął. Henryk Wolański, 91 lat, fabrykant guzików i tyran trzech pokoleń, zaprosił całą rodzinę na kolację. Po deserze zasnął twarzą w serniku. Tym razem na zawsze.',
-  'Nazywam się Wiesław Pióro, jestem notariuszem rodziny. Testament odczytam o świcie, punktualnie o czwartej. Majątek dzielą ci, którzy wtedy będą siedzieć przy tym stole.',
+  'Nazywam się Wiesław Pióro, jestem notariuszem rodziny. Testament odczytam o świcie, punktualnie o czwartej. Majątek podzielę między tych, którzy wtedy będą siedzieć przy tym stole.',
   'Lekarz mówi, że to serce. Ja mówię, że serniki nie zabijają same. Proszę teraz zajrzeć do telefonów. Dyskretnie.',
 ];
