@@ -4,7 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#120d0c">
-<title>Ostatnia wola</title>
+<title>Ostatnia wola – kryminalna gra imprezowa na TV i telefony</title>
+<meta name="description" content="Kryminalna gra imprezowa dla 3–12 osób. Ekran gry na telewizorze lub laptopie, tajne role i mini-gry na telefonach. Bez instalowania i bez kont.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='88'>🕯️</text></svg>">
 <style>
   :root {
     --bg: #120d0c; --panel: #1d1614; --panel-2: #271e1b; --line: #3a2d28;
@@ -128,11 +130,19 @@
   .rank { font-size: .85em; }
   .recon b { color: var(--ink); font-weight: normal; }
   #start-overlay {
-    position: fixed; inset: 0; background: rgba(10, 7, 6, .9); display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 1.2em; text-align: center; z-index: 40; padding: 2em;
+    position: fixed; inset: 0; background: rgba(10, 7, 6, .97); display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 1em; z-index: 40; padding: 2vh 3vw; overflow: hidden;
   }
-  #start-overlay p { color: var(--muted); max-width: 34em; }
-  #btn-start { font-size: 1.6em; padding: .6em 2.2em; }
+  .welcome-head { text-align: center; }
+  .welcome-head h1 { font-size: 2.8em; line-height: 1.1; }
+  .welcome-head p { color: var(--ink); font-size: 1.15em; margin-top: .3em; }
+  .welcome-grid { display: grid; grid-template-columns: 1.15fr 1fr 1.1fr; gap: 1.2vw; max-width: 72em; width: 100%; font-size: .88em; line-height: 1.45; }
+  .welcome-grid .panel { padding: .9em 1.1em; }
+  .welcome-grid h2 { font-size: 1.3em; margin-bottom: .4em; }
+  .welcome-grid ul, .welcome-grid ol { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: .35em; }
+  .welcome-grid p { margin: 0 0 .5em; }
+  .welcome-foot { color: var(--muted); font-size: .8em; text-align: center; max-width: 60em; }
+  #btn-start { font-size: 1.5em; padding: .5em 2.4em; }
   .s-foot { display: flex; justify-content: space-between; align-items: center; font-size: .7em; color: var(--muted); }
   .s-foot button { font-size: 1em; padding: .4em .8em; }
 
@@ -210,9 +220,39 @@
   </section>
   <footer class="s-foot"><span id="s-status"></span><span><button id="btn-music" class="secondary">Muzyka</button> <button id="btn-new-room" class="secondary">Nowy pokój</button></span></footer>
   <div id="start-overlay">
-    <h1 class="serif gold" style="font-size:3em">Ostatnia wola</h1>
-    <p>Kliknij OK na pilocie albo Start myszką, żeby włączyć dźwięk. Grę ustawia i startuje host z telefonu.</p>
+    <div class="welcome-head">
+      <h1 class="serif gold">Ostatnia wola</h1>
+      <p>Kryminalna gra imprezowa na telewizor i telefony. Dla 3–12 osób, na 30–60 minut.</p>
+    </div>
+    <div class="welcome-grid">
+      <div class="panel">
+        <h2 class="gold">O co chodzi</h2>
+        <p>Henryk Wolański, 91 lat, nie żyje, a burza odcięła dwór od świata. Wśród gości jest zabójca.</p>
+        <p>Każdy dostaje na telefonie tajną postać i rolę. Nocą wybieracie pokoje i gracie w krótkie mini-gry, rano zbieracie poszlaki, potem rozmawiacie i głosujecie, kogo zamknąć w areszcie.</p>
+        <p>Rodzina musi złapać zabójcę przed świtem. Zabójca musi dotrwać do świtu na wolności.</p>
+      </div>
+      <div class="panel">
+        <h2 class="gold">Przygotujcie</h2>
+        <ul>
+          <li>3–12 osób, każda z własnym telefonem z internetem.</li>
+          <li>Aparat w telefonie do zeskanowania kodu QR.</li>
+          <li>Ten ekran tak, żeby wszyscy go widzieli, i włączony dźwięk.</li>
+          <li>30–60 minut i miejsce przy jednym stole.</li>
+        </ul>
+        <p style="margin-top:.6em">Nic nie instalujecie i nie zakładacie kont. Wystarczy wpisać imię.</p>
+      </div>
+      <div class="panel">
+        <h2 class="gold">Jak zacząć</h2>
+        <ol>
+          <li>Kliknij Start (na pilocie: OK). Włączy się muzyka i pojawi się kod pokoju.</li>
+          <li>Każdy skanuje kod QR telefonem i wpisuje imię.</li>
+          <li>Pierwsza osoba, która dołączy, zostaje hostem: ustawia długość gry i ją startuje.</li>
+          <li>Przed pierwszą nocą wszyscy zobaczą zasady i role tej gry.</li>
+        </ol>
+      </div>
+    </div>
     <button id="btn-start">Start</button>
+    <p class="welcome-foot">Bez krwi, z czarnym humorem. Mogą grać dzieci, które umieją czytać: dla nich jest spokojne tempo z dłuższą nocą.</p>
   </div>
 </main>
 
@@ -236,8 +276,9 @@
 <!-- ===== Telefon bez kodu ===== -->
 <main id="landing" class="phone-wrap" hidden>
   <h1 class="serif gold" style="font-size:2em">Ostatnia wola</h1>
+  <p>Kryminalna gra imprezowa dla 3–12 osób. Ekran gry jest na telewizorze albo laptopie, a każdy gra na swoim telefonie. Nic nie instalujesz, wpisujesz tylko imię.</p>
   <form id="code-form" class="stack">
-    <label for="code-input" class="muted">Wpisz kod pokoju z ekranu gry</label>
+    <label for="code-input" class="muted">Wpisz 4-literowy kod pokoju z ekranu gry albo zeskanuj kod QR</label>
     <input id="code-input" maxlength="4" autocomplete="off" placeholder="ABCD" style="text-transform:uppercase;letter-spacing:.3em;text-align:center">
     <button class="big-btn" type="submit">Dołącz</button>
   </form>
