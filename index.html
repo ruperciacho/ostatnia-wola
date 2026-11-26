@@ -3108,11 +3108,18 @@ var qrcode = function() {
   var currentGame = null;
 
   function startPhone(code) {
+    var reloadReported = false;
     document.body.className = 'mode-phone';
     $('phone').hidden = false;
     G.code = code;
     G.token = sGet('token:' + code);
-    G.onView = renderPhone;
+    G.onView = function (v) {
+      renderPhone(v);
+      if (!reloadReported && v.me) {
+        reloadReported = true;
+        if (v.phase !== 'lobby' && v.phase !== 'end') report('page-load', null);
+      }
+    };
     G.onNotFound = function () {
       $('p-now').innerHTML = '<div class="panel">Nie ma pokoju ' + esc(code) + '. Sprawdź kod na ekranie gry.</div>';
     };
@@ -3149,11 +3156,61 @@ var qrcode = function() {
     if (n.needsRoom) {
       if (!c.room || (n.targetKind && !c.target) || (n.needsWatch && !c.watch)) return 'choose';
     }
+    if (n.follows && !c.target) return 'choose';
     if (!c.task) return 'task';
     return 'wait';
   }
 
+  // Zgłoszenia problemów z telefonów trafiają do logów funkcji `game` (najwyżej 8 na otwarcie strony)
+  var reportsLeft = 8;
+  function report(kind, detail) {
+    if (reportsLeft <= 0 || !G.code) return;
+    reportsLeft--;
+    var v = G.view;
+    var info = {
+      kind: kind, code: G.code, name: v && v.me ? v.me.name : null, phase: v ? v.phase : null, hour: v ? v.hour : null,
+      version: G.version, shown: $('p-now') ? $('p-now').getAttribute('data-key') : null, rt: G.rtStatus,
+      sinceView: G.lastUpdate ? Date.now() - G.lastUpdate : null, ua: navigator.userAgent, detail: detail
+    };
+    try { call({ op: 'log', code: G.code, log: info }).catch(function () {}); } catch (e) { /* ignore */ }
+  }
+
+  // Klucz ekranu: zmienia się, gdy telefon musi pokazać coś nowego (faza, godzina, krok nocy, „gotowe”)
+  function phoneKeyFor(v) {
+    var key = v.phase + ':' + v.hour;
+    if (v.phase === 'night') key += ':' + nightStep(v);
+    if (v.phase === 'prolog' || v.phase === 'rules') key += ':' + v.me.ready;
+    return key;
+  }
+
+  // Błąd przy rysowaniu nie może zostawić starego ekranu na stałe: następna aktualizacja rysuje od nowa
   function renderPhone(v) {
+    try {
+      renderPhoneInner(v);
+    } catch (e) {
+      phoneSig = '';
+      phoneKey = '';
+      report('render-error', String(e && e.stack || e).slice(0, 600));
+    }
+  }
+
+  // Strażnik: jeśli ekran telefonu nie pasuje do stanu gry dłużej niż 3 s, rysujemy go od nowa
+  var staleSince = 0;
+  setInterval(function () {
+    if (G.isScreen || !G.view || !G.view.me || !$('p-now')) return;
+    var want = phoneKeyFor(G.view);
+    var shown = $('p-now').getAttribute('data-key');
+    if (shown === want) { staleSince = 0; return; }
+    if (!staleSince) { staleSince = Date.now(); return; }
+    if (Date.now() - staleSince < 3000) return;
+    staleSince = 0;
+    report('stale-screen', { want: want, shown: shown });
+    phoneKey = '';
+    phoneSig = '';
+    renderPhone(G.view);
+  }, 1500);
+
+  function renderPhoneInner(v) {
     var me = v.me;
     $('p-label').textContent = PHASE_LABEL[v.phase] + (v.clock && v.phase !== 'end' ? ' ' + v.clock : '');
     $('p-sub').textContent = 'Pokój ' + v.code + (me ? ' · ' + me.name + (me.isHost ? ' (host)' : '') : '');
@@ -3171,9 +3228,7 @@ var qrcode = function() {
     if (v.phase !== phonePhase) { phonePhase = v.phase; showTab('p-now'); }
     $('p-hint').textContent = phoneHint(v);
 
-    var key = v.phase + ':' + v.hour;
-    if (v.phase === 'night') key += ':' + nightStep(v);
-    if (v.phase === 'prolog' || v.phase === 'rules') key += ':' + me.ready;
+    var key = phoneKeyFor(v);
     var dynamic = ['lobby', 'morning', 'discussion', 'accusation', 'verdict', 'dawn', 'end'].indexOf(v.phase) >= 0;
     if (!dynamic && key === phoneKey) {
       if (v.phase === 'night') updateNightWait(v);
@@ -3260,7 +3315,7 @@ var qrcode = function() {
     } else {
       html += '<p class="muted">Host ustawia grę i ją startuje. Wszystko inne zobaczysz na ekranie gry.</p>';
     }
-    var root = setNow('lobby', html);
+    var root = setNow(phoneKey, html);
     var setBtns = root.querySelectorAll('[data-set]');
     for (var i = 0; i < setBtns.length; i++) {
       setBtns[i].addEventListener('click', function () {
@@ -3349,7 +3404,7 @@ var qrcode = function() {
 
   // ---------- zasady gry (ekran przed startem i telefon) ----------
   var ROLE_SHORT = {
-    zabojca: 'co noc wybiera ofiarę i podrzuca fałszywe tropy',
+    zabojca: 'co noc wybiera ofiarę, idzie za nią do jej pokoju i podrzuca fałszywe tropy',
     zlodziej: 'kradnie pamiątki, gdy jest w pokoju z najwyżej 1 osobą',
     blazen: 'wygrywa, jeśli trafi do aresztu',
     detektyw: 'dostaje podwójne poszlaki za mini-gry',
@@ -3469,10 +3524,12 @@ var qrcode = function() {
       case 'night': {
         var step = nightStep(v);
         if (me.status !== 'active') return 'Grasz tylko w mini-grę. Co 3 udane mini-gry duchów i aresztantów odsłaniają poszlakę na tablicy.';
+        if (step === 'choose' && me.night && me.night.follows) return 'Wybierz ofiarę. Pójdziesz tam, gdzie ona spędza noc, i tam zagrasz w mini-grę.';
         if (step === 'choose') {
-          var extra = me.role && me.role.id === 'zabojca' ? ' Wybierz też ofiarę.' : me.role && me.role.id === 'lekarz' ? ' Wybierz, kogo chronisz.' : me.role && me.role.id === 'kamerdyner' ? ' Wybierz, który pokój obserwujesz.' : '';
+          var extra = me.role && me.role.id === 'lekarz' ? ' Wybierz, kogo chronisz.' : me.role && me.role.id === 'kamerdyner' ? ' Wybierz, który pokój obserwujesz.' : '';
           return 'Wybierz pokój, w którym zagrasz w mini-grę.' + extra + ' Jeśli nie zdążysz do końca nocy, pokój wylosuje się sam.';
         }
+        if (step === 'task' && me.role && me.role.id === 'zabojca') return 'Udana mini-gra: +1 punkt i możesz podrzucić fałszywy trop. „Rezygnuję” albo koniec czasu: nic nie dostajesz.';
         if (step === 'task') return 'Udana mini-gra: +1 punkt i poszlaka. „Rezygnuję” albo koniec czasu: nic nie dostajesz.';
         return 'Czekamy, aż wszyscy skończą noc. Możecie rozmawiać.';
       }
@@ -3514,7 +3571,7 @@ var qrcode = function() {
     if (step === 'task') return renderNightTask(v);
     var room = n.choice.room ? roomName(n.choice.room) : null;
     setNow(phoneKey, '<div class="panel stack center"><h2 class="gold">Noc mija…</h2>' +
-      (room ? '<p>Spędzasz noc: <b>' + esc(room) + '</b></p>' : '') +
+      (room ? '<p>Spędzasz noc: <b>' + esc(room) + '</b></p>' : n.follows ? '<p>Idziesz za: <b>' + esc(targetLabel(n)) + '</b></p>' : '') +
       '<p class="muted">' + (n.choice.task === 'ok' ? 'Mini-gra udana.' : 'Mini-gra nieudana.') + ' Czekamy na pozostałych.</p>' +
       '<p id="night-progress" class="muted"></p></div>' + hostBar(v));
     bindSkip($('p-now'));
@@ -3532,15 +3589,20 @@ var qrcode = function() {
   function renderNightChoose(v) {
     var n = v.me.night;
     var sel = { room: n.choice.room, target: n.choice.target, watch: n.choice.watch };
-    var html = '<div class="stack"><h2 class="gold">Noc, godzina ' + esc(v.clock) + '</h2>' +
-      '<p class="muted">Gdzie spędzasz noc? W tym pokoju zagrasz w mini-grę.</p><div class="grid2" data-group="room">' +
-      ROOMS.map(function (r) { return '<button class="secondary" data-val="' + r.id + '">' + esc(r.name) + '</button>'; }).join('') + '</div>';
+    var html = '<div class="stack"><h2 class="gold">Noc, godzina ' + esc(v.clock) + '</h2>';
+    if (!n.follows) {
+      html += '<p class="muted">Gdzie spędzasz noc? W tym pokoju zagrasz w mini-grę.</p><div class="grid2" data-group="room">' +
+        ROOMS.map(function (r) { return '<button class="secondary" data-val="' + r.id + '">' + esc(r.name) + '</button>'; }).join('') + '</div>';
+    }
     if (n.needsWatch) {
       html += '<p class="muted">Który pokój obserwujesz? Rano dowiesz się, kto tam był.</p><div class="grid2" data-group="watch">' +
         ROOMS.map(function (r) { return '<button class="secondary" data-val="' + r.id + '">' + esc(r.name) + '</button>'; }).join('') + '</div>';
     }
     if (n.targetKind) {
-      html += '<p class="muted">' + (n.targetKind === 'kill' ? 'Kogo dziś atakujesz?' : 'Kogo chronisz tej nocy?') + '</p><div class="choice-list" data-group="target">' +
+      var ask = n.targetKind !== 'kill' ? 'Kogo chronisz tej nocy?'
+        : n.follows && v.settings && v.settings.death ? 'Kogo dziś atakujesz? Pokój, do którego pójdziesz, poznasz rano.'
+        : 'Kogo dziś atakujesz? W nawiasie pokój, w którym ta osoba spędza noc.';
+      html += '<p class="muted">' + ask + '</p><div class="choice-list" data-group="target">' +
         n.targets.map(function (t) { return '<button class="secondary" data-val="' + esc(t.id) + '">' + esc(t.label) + '</button>'; }).join('') + '</div>';
     }
     html += '<button id="btn-night-go" class="big-btn" disabled>Dalej: mini-gra</button></div>';
@@ -3553,7 +3615,7 @@ var qrcode = function() {
         var bs = box.querySelectorAll('button');
         for (var i = 0; i < bs.length; i++) bs[i].className = bs[i].getAttribute('data-val') === sel[g] ? 'chosen' : 'secondary';
       });
-      var ok = !!sel.room && (!n.needsWatch || !!sel.watch) && (!n.targetKind || !!sel.target);
+      var ok = (n.follows || !!sel.room) && (!n.needsWatch || !!sel.watch) && (!n.targetKind || !!sel.target);
       root.querySelector('#btn-night-go').disabled = !ok;
     }
     var groups = root.querySelectorAll('[data-group]');
@@ -3571,24 +3633,42 @@ var qrcode = function() {
     root.querySelector('#btn-night-go').addEventListener('click', function () {
       var btn = this;
       btn.disabled = true;
-      var a = { type: 'night', room: sel.room };
+      var a = { type: 'night' };
+      if (!n.follows) a.room = sel.room;
       if (n.needsWatch) a.watch = sel.watch;
       if (n.targetKind) a.target = sel.target;
       act(a).then(function (j) { if (j && j.error) btn.disabled = false; }).catch(function () { btn.disabled = false; });
     });
   }
 
+  // Motyw mini-gry: pokój, w którym gracz spędza noc (duch, aresztant i zabójca idący za ofiarą mają własne)
+  function themeFor(v) {
+    var me = v.me;
+    if (me.status === 'dead') return 'duch';
+    if (me.status === 'arrested') return 'areszt';
+    var room = me.night && me.night.choice.room;
+    if (room && THEMES[room]) return room;
+    return me.night && me.night.follows ? 'cien' : 'biblioteka';
+  }
+  function targetLabel(n) {
+    for (var i = 0; i < n.targets.length; i++) if (n.targets[i].id === n.choice.target) return n.targets[i].label;
+    return '';
+  }
+
   function renderNightTask(v) {
     var me = v.me;
     var n = me.night;
     var ghost = me.status !== 'active';
-    var roomId = ghost ? 'ghost' : n.choice.room;
-    var root = setNow(phoneKey, '<div class="stack"><h2 class="gold">' + (ghost ? (me.status === 'dead' ? 'Mini-gra ducha' : 'Mini-gra w areszcie') : 'Mini-gra: ' + esc(roomName(roomId))) + '</h2>' +
+    var theme = themeFor(v);
+    var head = ghost ? (me.status === 'dead' ? 'Mini-gra ducha' : 'Mini-gra w areszcie')
+      : theme === 'cien' ? 'Skradasz się za: ' + esc(targetLabel(n)) : 'Mini-gra: ' + esc(roomName(theme));
+    var root = setNow(phoneKey, '<div class="stack"><h2 class="gold">' + head + '</h2>' +
+      (theme === 'cien' ? '<p class="muted">Idziesz korytarzami tam, gdzie ofiara spędza noc. Pokój poznasz rano.</p>' : '') +
       (ghost ? '<p class="muted">' + (me.status === 'dead' ? 'Jako duch pomagasz z zaświatów' : 'Z aresztu też pomagasz') + ': co 3 udane mini-gry duchów i aresztantów odsłaniają poszlakę.</p>' : '') +
       '<div id="game"></div></div>' + hostBar(v));
     bindSkip(root);
     var calm = !!(v.settings && v.settings.calm);
-    currentGame = runMiniGame($('game'), pickGame(v), calm, function (success) {
+    currentGame = runMiniGame($('game'), pickGame(v), calm, theme, function (success) {
       currentGame = null;
       if (success && n.frameTargets && n.frameTargets.length) return chooseFrame(v, n.frameTargets);
       sendTask(success);
@@ -3615,9 +3695,159 @@ var qrcode = function() {
     });
   }
 
+  // ---------- motywy mini-gier ----------
+  // Każdy pokój ma własną wersję każdej z 12 mini-gier, więc tytuł i przedmioty zawsze pasują
+  // do miejsca, w którym gracz spędza noc. Osobne motywy: duch, areszt i zabójca, który skrada się za ofiarą.
+  var THEMES = {
+    biblioteka: {
+      order: { t: 'Ułóż tomy na półce', h: 'Stukaj w tytuły w kolejności alfabetycznej (od A do Z).', sets: [
+        ['Atlas', 'Baśnie', 'Czarodziej', 'Dziennik', 'Elementarz'], ['Fraszki', 'Gramatyka', 'Herbarz', 'Kroniki', 'Legendy'],
+        ['Mapy', 'Nuty', 'Opowieści', 'Poezje', 'Rymy'], ['Malarstwo', 'Opery', 'Teatr', 'Wiersze', 'Zagadki']] },
+      years: { t: 'Pierwsze wydania', h: 'Stukaj w daty wydania od najdawniejszej do najnowszej.' },
+      timing: ['Złap spadający tom', 'Zatrzymaj drabinę na kółkach', 'Zdmuchnij świecę przy regale'],
+      sequence: { t: 'Sygnatury książek', pool: ['A-12', 'B-7', 'C-31', 'D-4', 'E-19', 'F-23', 'G-8', 'H-15'] },
+      math: ['Numeracja stron', 'Kara za przetrzymane książki'],
+      simon: 'Kolorowe zakładki',
+      odd: [['📕', '📗'], ['📚', '📖'], ['🦉', '🐦'], ['🕯️', '🔥'], ['✒️', '🖋️'], ['📜', '📃']],
+      count: { items: [{ e: '📕', n: 'czerwonych książek' }, { e: '🦉', n: 'sów' }, { e: '🕯️', n: 'świec' }, { e: '🔖', n: 'zakładek' }], fill: ['📗', '📘', '📙', '📜', '🕸️', '✒️'] },
+      pairs: ['📕', '📜', '🦉', '🕯️', '✒️', '🔖', '📚', '🕰️'],
+      find: { items: [{ e: '🔖', t: 'Znajdź wszystkie zakładki' }, { e: '🐛', t: 'Wyłap mole książkowe' }, { e: '🔑', t: 'Znajdź klucze do tajnego przejścia' }], fill: ['📕', '📗', '📘', '📙', '📚', '📜', '🕸️'] },
+      pattern: { t: 'Wzór na grzbietach książek', sets: [['📕', '📗', '📘'], ['📙', '📕', '📚'], ['🦉', '🕯️', '📜']] },
+      catch: { t: 'Złap mola książkowego', e: '🐛', h: 'Stukaj w mola, zanim się schowa.' }
+    },
+    kuchnia: {
+      order: { t: 'Ułóż słoiki z przyprawami', h: 'Stukaj w nazwy przypraw od A do Z.', sets: [
+        ['Anyż', 'Bazylia', 'Cynamon', 'Imbir', 'Kminek'], ['Lubczyk', 'Majeranek', 'Oregano', 'Pieprz', 'Tymianek'],
+        ['Estragon', 'Gałka', 'Kurkuma', 'Rozmaryn', 'Szałwia'], ['Chrzan', 'Goździki', 'Jałowiec', 'Mięta', 'Wanilia']] },
+      years: { t: 'Zeszyty z przepisami', h: 'Stukaj w daty na okładkach od najdawniejszej do najnowszej.' },
+      timing: ['Posól rosół', 'Przewróć naleśnik', 'Wyjmij sernik z pieca'],
+      sequence: { t: 'Kolejność składników', pool: ['mąka', 'jajka', 'cukier', 'masło', 'mleko', 'drożdże', 'sól', 'miód'] },
+      math: ['Przelicz przepis', 'Ile pierogów na stypę?'],
+      simon: 'Dzwonki dla służby',
+      odd: [['🍰', '🧁'], ['🥄', '🍴'], ['🍳', '🥞'], ['🍪', '🍩'], ['🥚', '🍳'], ['🍅', '🍎']],
+      count: { items: [{ e: '🍪', n: 'ciastek' }, { e: '🥚', n: 'jajek' }, { e: '🍅', n: 'pomidorów' }, { e: '🐭', n: 'myszy' }], fill: ['🍞', '🥄', '🍴', '🧀', '🍯', '🥛'] },
+      pairs: ['🍰', '🍪', '🥚', '🧀', '🍯', '🍅', '🥄', '🍞'],
+      find: { items: [{ e: '🍬', t: 'Znajdź schowane cukierki' }, { e: '🥄', t: 'Znajdź srebrne łyżeczki' }, { e: '🧀', t: 'Znajdź kawałki sera' }], fill: ['🍞', '🍴', '🍳', '🥛', '🍯', '🥕', '🍅'] },
+      pattern: { t: 'Wzór na obrusie', sets: [['🍰', '☕', '🍪'], ['🍅', '🥕', '🥚'], ['🍞', '🧀', '🍯']] },
+      catch: { t: 'Przegoń mysz ze spiżarni', e: '🐭', h: 'Stukaj w mysz, zanim ucieknie.' }
+    },
+    gabinet: {
+      order: { t: 'Ułóż teczki w szafie', h: 'Stukaj w napisy na teczkach od A do Z.', sets: [
+        ['Akta', 'Bilanse', 'Faktury', 'Rachunki', 'Umowy'], ['Długi', 'Hipoteki', 'Kredyty', 'Pożyczki', 'Weksle'],
+        ['Darowizna', 'Majątek', 'Notariusz', 'Spadek', 'Testament'], ['Akcje', 'Dywidendy', 'Lokaty', 'Obligacje', 'Udziały']] },
+      years: { t: 'Stare umowy Henryka', h: 'Stukaj w daty umów od najdawniejszej do najnowszej.' },
+      timing: ['Nakręć zegar', 'Złap wahadło', 'Przybij pieczątkę'],
+      sequence: { t: 'Szyfr do sejfu', pool: ['12', '17', '23', '31', '38', '44', '56', '61'] },
+      math: ['Sejf w gabinecie', 'Rachunki Henryka'],
+      simon: 'Lampki na biurku',
+      odd: [['🔑', '🗝️'], ['✒️', '🖋️'], ['📁', '📂'], ['🕰️', '⏰'], ['💼', '👜'], ['📎', '🖇️']],
+      count: { items: [{ e: '🔑', n: 'kluczy' }, { e: '📎', n: 'spinaczy' }, { e: '✉️', n: 'kopert' }, { e: '🕰️', n: 'zegarów' }], fill: ['📁', '📂', '💼', '✒️', '📜', '🎩'] },
+      pairs: ['🔑', '📁', '✒️', '💼', '🕰️', '📎', '✉️', '🎩'],
+      find: { items: [{ e: '🔑', t: 'Znajdź wszystkie klucze' }, { e: '✉️', t: 'Znajdź listy od notariusza' }, { e: '💰', t: 'Znajdź ukryte oszczędności' }], fill: ['📁', '📂', '💼', '✒️', '📜', '📎', '🎩'] },
+      pattern: { t: 'Wzór na tapecie', sets: [['🎩', '🔑', '📜'], ['🟥', '🟦', '🟩'], ['🕰️', '✒️', '💼']] },
+      catch: { t: 'Pacnij komara nad biurkiem', e: '🦟', h: 'Stukaj w komara, zanim odleci.' }
+    },
+    piwnica: {
+      order: { t: 'Ułóż słoiki na półkach', h: 'Stukaj w etykiety od A do Z.', sets: [
+        ['Agrest', 'Buraki', 'Czereśnie', 'Dżem', 'Ogórki'], ['Fasola', 'Grzyby', 'Kapusta', 'Papryka', 'Śliwki'],
+        ['Jabłka', 'Leczo', 'Maliny', 'Powidła', 'Wiśnie'], ['Aronia', 'Kompot', 'Miód', 'Rydze', 'Smalec']] },
+      years: { t: 'Roczniki win', h: 'Stukaj w roczniki od najstarszego do najmłodszego.' },
+      timing: ['Odkręć kurek beczki', 'Zakręć cieknący kran', 'Złap spadającą butelkę'],
+      sequence: { t: 'Roczniki w piwnicy', pool: ['1921', '1934', '1956', '1968', '1975', '1987', '1999', '2003'] },
+      math: ['Inwentarz win', 'Kłódka na drzwiach do lochu'],
+      simon: 'Zawory w kotłowni',
+      odd: [['🍷', '🍸'], ['🍾', '🍷'], ['🥔', '🥚'], ['🐭', '🐀'], ['🕯️', '🔥'], ['🍄', '🌰']],
+      count: { items: [{ e: '🍾', n: 'butelek' }, { e: '🥔', n: 'ziemniaków' }, { e: '🐭', n: 'myszy' }, { e: '🕸️', n: 'pajęczyn' }], fill: ['📦', '🍷', '🥕', '🧀', '🛢️', '🍄'] },
+      pairs: ['🍷', '🍾', '🥔', '🐀', '🕯️', '🧀', '🍄', '🥕'],
+      find: { items: [{ e: '🐭', t: 'Złap wszystkie myszy' }, { e: '🍾', t: 'Znajdź butelki z 1921 roku' }, { e: '🕯️', t: 'Znajdź zapasowe świece' }], fill: ['📦', '🥔', '🥕', '🕸️', '🛢️', '🍷', '🧀'] },
+      pattern: { t: 'Ułóż butelki według wzoru', sets: [['🍷', '🍾', '🥂'], ['🥔', '🥕', '🍄'], ['🟥', '🟦', '🟩']] },
+      catch: { t: 'Złap szczura Bolka', e: '🐀', h: 'Stukaj w Bolka, zanim ucieknie.' }
+    },
+    oranzeria: {
+      order: { t: 'Ułóż etykiety na doniczkach', h: 'Stukaj w nazwy roślin od A do Z.', sets: [
+        ['Aloes', 'Begonia', 'Fikus', 'Kaktus', 'Storczyk'], ['Bluszcz', 'Dalia', 'Hortensja', 'Lilia', 'Palma'],
+        ['Azalia', 'Geranium', 'Jaśmin', 'Mirt', 'Róża'], ['Cytryna', 'Fiołek', 'Lawenda', 'Orchidea', 'Tulipan']] },
+      years: { t: 'Kiedy posadzono drzewa?', h: 'Stukaj w daty od najdawniejszej do najnowszej.' },
+      timing: ['Podlej storczyk', 'Przytnij różę', 'Złap spadającą cytrynę'],
+      sequence: { t: 'Kolejność podlewania', pool: ['róża', 'fikus', 'palma', 'kaktus', 'lilia', 'mięta', 'bluszcz', 'storczyk'] },
+      math: ['Ile nasion do doniczek?', 'Rachunek za nawóz'],
+      simon: 'Kwiaty otwierają się po kolei',
+      odd: [['🌹', '🌷'], ['🌸', '🌺'], ['🌻', '🌼'], ['🌵', '🌴'], ['🐝', '🐞'], ['🍀', '🌿']],
+      count: { items: [{ e: '🌷', n: 'tulipanów' }, { e: '🐌', n: 'ślimaków' }, { e: '🐞', n: 'biedronek' }, { e: '🌵', n: 'kaktusów' }], fill: ['🌿', '🍃', '🌱', '🌸', '🍀', '💧'] },
+      pairs: ['🌹', '🌷', '🌻', '🌵', '🐝', '🐞', '🍀', '🐌'],
+      find: { items: [{ e: '🐌', t: 'Zbierz ślimaki z liści' }, { e: '🐞', t: 'Znajdź wszystkie biedronki' }, { e: '🐛', t: 'Zdejmij gąsienice z róż' }], fill: ['🌿', '🍃', '🌱', '🌸', '🌼', '🍀', '🌺'] },
+      pattern: { t: 'Rabatka według wzoru', sets: [['🌹', '🌼', '🌷'], ['🌵', '🌴', '🌿'], ['🐝', '🦋', '🐞']] },
+      catch: { t: 'Złap motyla', e: '🦋', h: 'Stukaj w motyla, zanim odfrunie.' }
+    },
+    strych: {
+      order: { t: 'Ułóż listy od ciotek', h: 'Stukaj w imiona ciotek od A do Z.', sets: [
+        ['Adela', 'Bronisława', 'Celina', 'Danuta', 'Eugenia'], ['Felicja', 'Genowefa', 'Halina', 'Irena', 'Janina'],
+        ['Krystyna', 'Leokadia', 'Marianna', 'Natalia', 'Otylia'], ['Paulina', 'Regina', 'Stefania', 'Teodora', 'Wanda']] },
+      years: { t: 'Portrety przodków', h: 'Stukaj w daty pod portretami od najdawniejszej do najnowszej.' },
+      timing: ['Zdmuchnij świecę', 'Złap spadający kapelusz', 'Zatrzymaj konika na biegunach'],
+      sequence: { t: 'Szyfr z pamiętnika', pool: ['AB', 'KO', 'MU', 'TE', 'RI', 'ZA', 'LO', 'PE'] },
+      math: ['Kłódka na kufrze', 'Rachunki w starym kalendarzu'],
+      simon: 'Kolorowe szybki w okienku',
+      odd: [['🕯️', '🔥'], ['🎩', '👒'], ['🕰️', '⏰'], ['🧸', '🐻'], ['🧳', '💼'], ['📷', '📹']],
+      count: { items: [{ e: '🦇', n: 'nietoperzy' }, { e: '🕸️', n: 'pajęczyn' }, { e: '🧸', n: 'misiów' }, { e: '🕯️', n: 'świec' }], fill: ['📦', '🧦', '🎩', '🧳', '🎈', '🕰️'] },
+      pairs: ['🧸', '🎩', '🕰️', '🦇', '🧳', '📷', '🕯️', '🎻'],
+      find: { items: [{ e: '🧦', t: 'Znajdź skarpety od Henryka' }, { e: '🧸', t: 'Znajdź zaginione misie' }, { e: '📷', t: 'Znajdź stare aparaty' }], fill: ['📦', '🧳', '🎩', '🕸️', '🎈', '🕰️', '📚'] },
+      pattern: { t: 'Wzór na starej kołdrze', sets: [['🟥', '🟦', '🟩'], ['🎩', '🧸', '🕯️'], ['🦇', '🕸️', '🌙']] },
+      catch: { t: 'Złap ducha na strychu', e: '👻', h: 'Stukaj w ducha, zanim zniknie.' }
+    },
+    duch: {
+      order: { t: 'Lista obecności duchów', h: 'Stukaj w imiona duchów od A do Z.', sets: [
+        ['Albin', 'Bogumił', 'Czesław', 'Dobromir', 'Eustachy'], ['Florian', 'Gerwazy', 'Hieronim', 'Ignacy', 'Kunegunda'],
+        ['Leon', 'Medard', 'Nikodem', 'Onufry', 'Protazy'], ['Rozalia', 'Scholastyka', 'Tekla', 'Urszula', 'Zenobia']] },
+      years: { t: 'Rocznice straszenia', h: 'Stukaj w daty od najdawniejszej do najnowszej.' },
+      timing: ['Zastukaj w ścianę o północy', 'Przesuń filiżankę podczas seansu', 'Zgaś świecę lodowatym oddechem'],
+      sequence: { t: 'Szyfr stukania w ścianę', pool: ['stuk', 'puk', 'skrzyp', 'szur', 'bum', 'tup', 'dzyń', 'chlup'] },
+      math: ['Rachunki z zaświatów', 'Ile lat już straszysz?'],
+      simon: 'Seans spirytystyczny',
+      odd: [['👻', '🎃'], ['💀', '☠️'], ['🕯️', '🔥'], ['🦇', '🐦'], ['🌙', '⭐'], ['🔮', '⚪']],
+      count: { items: [{ e: '👻', n: 'duchów' }, { e: '💀', n: 'czaszek' }, { e: '🕯️', n: 'świec' }, { e: '🦇', n: 'nietoperzy' }], fill: ['🌙', '⭐', '🕸️', '🔮', '🎃', '☁️'] },
+      pairs: ['👻', '💀', '🎃', '🕯️', '🦇', '🔮', '🌙', '🕸️'],
+      find: { items: [{ e: '🔮', t: 'Znajdź kryształowe kule' }, { e: '🕯️', t: 'Znajdź wszystkie świece' }, { e: '🗝️', t: 'Znajdź klucze do krypty' }], fill: ['👻', '💀', '🎃', '🦇', '🌙', '🕸️', '☁️'] },
+      pattern: { t: 'Wzór w kryształowej kuli', sets: [['👻', '🦇', '🕸️'], ['💀', '🎃', '🕯️'], ['🌙', '⭐', '☁️']] },
+      catch: { t: 'Postrasz domowników', e: '😱', h: 'Stukaj w przestraszoną minę, zanim się schowa.' }
+    },
+    areszt: {
+      order: { t: 'Ułóż zarzuty w aktach', h: 'Stukaj w zarzuty od A do Z.', sets: [
+        ['Bigamia', 'Defraudacja', 'Fałszerstwo', 'Kradzież', 'Oszustwo'], ['Hazard', 'Kłusownictwo', 'Paserstwo', 'Szantaż', 'Włamanie'],
+        ['Chuligaństwo', 'Dezercja', 'Łapówka', 'Plotkarstwo', 'Wandalizm']] },
+      years: { t: 'Stare wyroki', h: 'Stukaj w daty wyroków od najdawniejszej do najnowszej.' },
+      timing: ['Przemknij obok strażnika', 'Złap rzucony klucz', 'Odsuń zasuwę'],
+      sequence: { t: 'Numery cel', pool: ['3', '7', '12', '15', '21', '28', '33', '40'] },
+      math: ['Ile dni do wyjścia?', 'Policz kraty'],
+      simon: 'Sygnały do sąsiedniej celi',
+      odd: [['🔒', '🔓'], ['🔑', '🗝️'], ['🍞', '🥖'], ['🥄', '🍴'], ['🎲', '🃏'], ['🧦', '👟']],
+      count: { items: [{ e: '🔒', n: 'kłódek' }, { e: '🍞', n: 'bochenków chleba' }, { e: '🥄', n: 'łyżek' }, { e: '🐭', n: 'myszy' }], fill: ['🧦', '📰', '🃏', '🎲', '🥖', '🕸️'] },
+      pairs: ['🔒', '🔑', '🍞', '🥄', '🃏', '🎲', '📰', '🧦'],
+      find: { items: [{ e: '🔑', t: 'Znajdź zgubione klucze strażnika' }, { e: '🥄', t: 'Znajdź łyżki do kopania tunelu' }, { e: '📰', t: 'Zbierz gazety z wolności' }], fill: ['🧦', '🃏', '🎲', '🍞', '🕸️', '🔒', '🥖'] },
+      pattern: { t: 'Wzór wydrapany na ścianie', sets: [['🔒', '🔑', '🚪'], ['🍞', '🥄', '☕'], ['🃏', '🎲', '📰']] },
+      catch: { t: 'Złap pająka w celi', e: '🕷️', h: 'Stukaj w pająka, zanim ucieknie.' }
+    },
+    cien: {
+      order: { t: 'Klucze do drzwi na korytarzu', h: 'Stukaj w napisy na kluczach od A do Z.', sets: [
+        ['Alkowa', 'Buduar', 'Garderoba', 'Pralnia', 'Spiżarnia'], ['Hol', 'Kaplica', 'Łazienka', 'Sień', 'Weranda'],
+        ['Antresola', 'Galeria', 'Korytarz', 'Taras', 'Wieżyczka']] },
+      years: { t: 'Portrety w korytarzu', h: 'Stukaj w daty pod portretami od najdawniejszej do najnowszej.' },
+      timing: ['Przejdź po skrzypiącej desce', 'Przemknij, gdy zegar wybija godzinę', 'Schowaj się za zasłoną'],
+      sequence: { t: 'Skrzypiące deski', pool: ['1', '4', '7', '9', '12', '15', '18', '22'] },
+      math: ['Policz kroki do drzwi', 'Ile minut do świtu?'],
+      simon: 'Lampy w korytarzu',
+      odd: [['🕯️', '🔥'], ['🚪', '🖼️'], ['🕰️', '⏰'], ['🐈', '🐕'], ['🌙', '⭐'], ['👣', '👟']],
+      count: { items: [{ e: '🚪', n: 'drzwi' }, { e: '🕯️', n: 'świec' }, { e: '🖼️', n: 'obrazów' }, { e: '🐈', n: 'kotów' }], fill: ['🕰️', '🌙', '👣', '🕸️', '🧹', '🎩'] },
+      pairs: ['🚪', '🕯️', '🖼️', '🐈', '🕰️', '👣', '🌙', '🧹'],
+      find: { items: [{ e: '👣', t: 'Zatrzyj swoje ślady' }, { e: '🕯️', t: 'Znajdź świece do zgaszenia' }, { e: '🔑', t: 'Znajdź klucze do pokoi' }], fill: ['🚪', '🖼️', '🕰️', '🌙', '🕸️', '🧹', '🎩'] },
+      pattern: { t: 'Wzór na chodniku w korytarzu', sets: [['🟥', '🟦', '🟩'], ['🚪', '🕯️', '🖼️'], ['🌙', '⭐', '☁️']] },
+      catch: { t: 'Przegoń kota z korytarza', e: '🐈', h: 'Stukaj w kota, zanim zamiauczy.' }
+    }
+  };
+
   // ---------- mini-gry ----------
   // Pula 12 mini-gier. Gra jest losowana dla gracza i godziny (stała po odświeżeniu strony),
-  // więc w tym samym pokoju co noc trafia się coś innego.
+  // więc w tym samym pokoju co noc trafia się coś innego. Treść (tytuł, przedmioty) bierze się z motywu pokoju.
   var GAMES = ['books', 'years', 'timing', 'sequence', 'math', 'simon', 'odd', 'count', 'pairs', 'find', 'pattern', 'ghost'];
 
   function hashStr(s) {
@@ -3632,7 +3862,8 @@ var qrcode = function() {
   function rnd(n) { return Math.floor(Math.random() * n); }
   function pickOne(a) { return a[rnd(a.length)]; }
 
-  function runMiniGame(box, kind, calm, done) {
+  function runMiniGame(box, kind, calm, themeId, done) {
+    var T = THEMES[themeId] || THEMES.biblioteka;
     // Mini-gra trwa do końca nocy (noc ma limit 2 min, w spokojnym tempie 3 min)
     var deadline = G.view && G.view.endsAt ? G.view.endsAt - 1500 : serverNow() + 120000;
     var finished = false;
@@ -3651,7 +3882,7 @@ var qrcode = function() {
     }
     function later(fn, ms) { timers.push(setTimeout(fn, ms)); }
     box.innerHTML = '<div class="game-box"><div class="row" style="justify-content:space-between"><span id="g-title"></span><span id="g-time" class="timer"></span></div>' +
-      '<p id="g-help" class="muted"></p><div id="g-area" class="stack" data-game="' + kind + '"></div><button id="g-quit" class="secondary">Rezygnuję</button></div>';
+      '<p id="g-help" class="muted"></p><div id="g-area" class="stack" data-game="' + kind + '" data-theme="' + themeId + '"></div><button id="g-quit" class="secondary">Rezygnuję</button></div>';
     box.querySelector('#g-quit').addEventListener('click', function () { finish(false); });
     timers.push(setInterval(function () {
       var left = deadline - serverNow();
@@ -3682,31 +3913,23 @@ var qrcode = function() {
     var G_ = {
       // 1. Tomy w kolejności alfabetycznej
       books: function () {
-        var sets = [
-          ['Abecadło', 'Bajki', 'Cukiernia', 'Dżemy', 'Encyklopedia'],
-          ['Atlas', 'Baśnie', 'Czarodziej', 'Dziennik', 'Elementarz'],
-          ['Fraszki', 'Gramatyka', 'Herbarz', 'Kroniki', 'Legendy'],
-          ['Mapy', 'Nuty', 'Opowieści', 'Poezje', 'Rymy'],
-          ['Album', 'Grzyby', 'Kucharz', 'Ptaki', 'Zegary'],
-          ['Teatr', 'Wiersze', 'Zagadki', 'Opery', 'Malarstwo']
-        ];
-        var items = pickOne(sets).slice().sort(function (a, b) { return a.localeCompare(b, 'pl'); });
-        title.textContent = 'Ułóż tomy na półce';
-        help.textContent = 'Stukaj w tytuły w kolejności alfabetycznej (od A do Z).';
+        var items = pickOne(T.order.sets).slice().sort(function (a, b) { return a.localeCompare(b, 'pl'); });
+        title.textContent = T.order.t;
+        help.textContent = T.order.h;
         orderGame(items);
       },
-      // 2. Portrety od najstarszego
+      // 2. Daty od najdawniejszej
       years: function () {
         var ys = [];
         while (ys.length < 5) { var y = 1700 + rnd(290); if (ys.every(function (x) { return Math.abs(x - y) > 4; })) ys.push(y); }
         ys.sort(function (a, b) { return a - b; });
-        title.textContent = 'Portrety przodków';
-        help.textContent = 'Stukaj w daty od najdawniejszej do najnowszej.';
+        title.textContent = T.years.t;
+        help.textContent = T.years.h;
         orderGame(ys.map(String));
       },
       // 3. Refleks: znacznik w zielonym polu
       timing: function () {
-        title.textContent = pickOne(['Posól rosół', 'Podlej storczyk', 'Zdmuchnij świecę', 'Nakręć zegar', 'Złap wahadło']);
+        title.textContent = pickOne(T.timing);
         help.textContent = 'Stuknij „Teraz!”, gdy znacznik jest w zielonym polu. Potrzebne 3 trafienia.';
         var zoneW = calm ? 30 : 22;
         var speed = calm ? 0.55 : 0.8;
@@ -3746,12 +3969,7 @@ var qrcode = function() {
       },
       // 4. Zapamiętaj kolejność
       sequence: function () {
-        var themes = [
-          { t: 'Roczniki w piwnicy', pool: ['1921', '1934', '1956', '1968', '1975', '1987', '1999', '2003'] },
-          { t: 'Numery pokoi gościnnych', pool: ['12', '17', '23', '31', '38', '44', '56', '61'] },
-          { t: 'Szyfr z pamiętnika', pool: ['AB', 'KO', 'MU', 'TE', 'RI', 'ZA', 'LO', 'PE'] }
-        ];
-        var th = pickOne(themes);
+        var th = T.sequence;
         title.textContent = th.t;
         var seq = shuffle(th.pool).slice(0, calm ? 3 : 4);
         var showMs = calm ? 6000 : 4000;
@@ -3782,7 +4000,7 @@ var qrcode = function() {
       },
       // 5. Rachunki do sejfu
       math: function () {
-        title.textContent = pickOne(['Sejf w gabinecie', 'Rachunki Henryka', 'Kłódka na kufrze']);
+        title.textContent = pickOne(T.math);
         help.textContent = 'Policz i wybierz wynik. Potrzebne 3 dobre odpowiedzi.';
         var good = 0;
         function q() {
@@ -3806,7 +4024,7 @@ var qrcode = function() {
       },
       // 6. Kolorowe dzwonki: powtórz sekwencję
       simon: function () {
-        title.textContent = 'Dzwonki dla służby';
+        title.textContent = T.simon;
         var colors = ['red', 'blue', 'green', 'gold'];
         var seq = [];
         for (var i = 0; i < (calm ? 3 : 4); i++) seq.push(rnd(4));
@@ -3816,7 +4034,7 @@ var qrcode = function() {
         var pads = area.querySelectorAll('.pad');
         function setEnabled(on) { for (var i = 0; i < pads.length; i++) pads[i].disabled = !on; }
         function play() {
-          help.textContent = 'Patrz, które dzwonki zadzwonią…';
+          help.textContent = 'Patrz, w jakiej kolejności zaświecą się pola…';
           setEnabled(false);
           at = 0;
           seq.forEach(function (c, k) {
@@ -3841,7 +4059,7 @@ var qrcode = function() {
       odd: function () {
         title.textContent = 'Coś tu nie pasuje';
         help.textContent = 'Znajdź jeden przedmiot inny niż reszta. Trzy razy.';
-        var pairs = [['🕯️', '🔥'], ['🔑', '🗝️'], ['🍷', '🍸'], ['🎩', '👒'], ['🌹', '🌷'], ['🐈', '🐕'], ['🕰️', '⏰'], ['📕', '📗'], ['🍰', '🧁'], ['👻', '🎃']];
+        var pairs = T.odd;
         var good = 0;
         var size = calm ? 3 : 4;
         function round() {
@@ -3861,8 +4079,8 @@ var qrcode = function() {
       // 8. Policz przedmioty
       count: function () {
         title.textContent = 'Inwentaryzacja';
-        var targets = [{ e: '🦇', n: 'nietoperzy' }, { e: '🕯️', n: 'świec' }, { e: '🍪', n: 'ciastek' }, { e: '🐭', n: 'myszy' }, { e: '🔑', n: 'kluczy' }];
-        var fillers = ['🕸️', '📦', '🧦', '🍂', '🎈', '⚙️'];
+        var targets = T.count.items;
+        var fillers = T.count.fill;
         var good = 0;
         function q() {
           var t = pickOne(targets);
@@ -3890,9 +4108,9 @@ var qrcode = function() {
       },
       // 9. Pary kart
       pairs: function () {
-        title.textContent = 'Rodzinne pamiątki w parach';
+        title.textContent = 'Znajdź pary';
         help.textContent = 'Odkrywaj po dwie karty i znajdź wszystkie pary.';
-        var pool = shuffle(['🍷', '🕯️', '🔑', '🎩', '🌹', '📕', '🍰', '🕰️']).slice(0, calm ? 3 : 4);
+        var pool = shuffle(T.pairs.slice()).slice(0, calm ? 3 : 4);
         var deck = shuffle(pool.concat(pool));
         var open = [];
         var matched = 0;
@@ -3918,8 +4136,8 @@ var qrcode = function() {
       },
       // 10. Znajdź wszystkie wskazane przedmioty
       find: function () {
-        var targets = [{ e: '🔑', t: 'Znajdź wszystkie klucze' }, { e: '🧦', t: 'Znajdź skarpety od Henryka' }, { e: '🍬', t: 'Znajdź schowane cukierki' }, { e: '🐭', t: 'Złap wszystkie myszy' }];
-        var fillers = ['📦', '🧺', '🧸', '📚', '🕸️', '🍂', '🎈'];
+        var targets = T.find.items;
+        var fillers = T.find.fill;
         var tg = pickOne(targets);
         title.textContent = tg.t;
         var n = calm ? 12 : 16;
@@ -3940,9 +4158,9 @@ var qrcode = function() {
       },
       // 11. Co będzie następne we wzorze
       pattern: function () {
-        title.textContent = 'Wzór na obrusie';
+        title.textContent = T.pattern.t;
         help.textContent = 'Co powinno być w miejscu znaku zapytania? Potrzebne 3 dobre odpowiedzi.';
-        var sets = [['🕯️', '🍷', '🌹'], ['🔑', '🎩', '📕'], ['🍰', '☕', '🍪'], ['👻', '🦇', '🕸️'], ['🟥', '🟦', '🟩']];
+        var sets = T.pattern.sets;
         var shapes = [[0, 1], [0, 0, 1], [0, 1, 2], [0, 1, 1], [0, 1, 2, 1]];
         var good = 0;
         function q() {
@@ -3964,20 +4182,21 @@ var qrcode = function() {
         }
         q();
       },
-      // 12. Złap ducha
+      // 12. Złap, zanim zniknie (duch, mysz, motyl… zależnie od pokoju)
       ghost: function () {
-        title.textContent = 'Złap ducha na strychu';
+        var C = T.catch;
+        title.textContent = C.t;
         var need = calm ? 4 : 5;
         var stay = calm ? 1400 : 950;
         var hits = 0;
         var at = -1;
-        help.textContent = 'Stukaj w ducha, zanim zniknie. Trafienia: 0/' + need + '.';
+        help.textContent = C.h + ' Trafienia: 0/' + need + '.';
         grid(['', '', '', '', '', '', '', '', ''], 3, function (i, b) {
           if (i !== at) return;
           hits++;
           b.textContent = '✨';
           at = -1;
-          help.textContent = 'Stukaj w ducha, zanim zniknie. Trafienia: ' + hits + '/' + need + '.';
+          help.textContent = C.h + ' Trafienia: ' + hits + '/' + need + '.';
           if (hits >= need) finish(true);
         });
         var cells = area.querySelectorAll('.cell');
@@ -3986,7 +4205,7 @@ var qrcode = function() {
           var next = rnd(9);
           if (next === at) next = (next + 1 + rnd(8)) % 9;
           at = next;
-          cells[at].textContent = '👻';
+          cells[at].textContent = C.e;
           later(move, stay);
         }
         later(move, 400);
@@ -4123,7 +4342,7 @@ var qrcode = function() {
   // ---------- routing ----------
   // Tryb testowy mini-gier: ?dev=1 (używany tylko przez testy automatyczne)
   if (params.get('dev') === '1') {
-    window.__owDev = { GAMES: GAMES, run: function (box, kind, calm, done) { return runMiniGame(box, kind, calm, done); } };
+    window.__owDev = { GAMES: GAMES, THEMES: Object.keys(THEMES), run: function (box, kind, calm, done, theme) { return runMiniGame(box, kind, calm, theme || 'biblioteka', done); } };
     return;
   }
   var playCode = cleanCode(params.get('p'));

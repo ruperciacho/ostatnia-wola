@@ -90,6 +90,12 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'Nie udało się utworzyć pokoju' }, 500);
     }
 
+    if (body.op === 'log') {
+      // Zgłoszenia z telefonów (błąd rysowania, zawieszony ekran, przeładowanie w trakcie gry)
+      console.error('client', JSON.stringify((body as { log?: unknown }).log ?? null).slice(0, 1500));
+      return json({ ok: true });
+    }
+
     const code = cleanCode(body.code);
     if (code.length !== 4) return json({ error: 'Kod pokoju ma 4 litery' }, 400);
 

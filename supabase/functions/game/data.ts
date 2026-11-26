@@ -182,7 +182,7 @@ export const ROLES: Record<RoleId, Role> = {
   detektyw: { id: 'detektyw', name: 'Detektyw', faction: 'rodzina', does: 'Za każdą udaną mini-grę dostajesz dwie poszlaki zamiast jednej.', wins: 'Wygrywasz, gdy wszyscy zabójcy zostaną złapani.' },
   kamerdyner: { id: 'kamerdyner', name: 'Kamerdyner', faction: 'rodzina', does: 'Co noc obserwujesz jeden pokój i widzisz, kto w nim był.', wins: 'Wygrywasz, gdy wszyscy zabójcy zostaną złapani.' },
   lekarz: { id: 'lekarz', name: 'Lekarz rodzinny', faction: 'rodzina', does: 'Co noc chronisz jedną osobę, ale nie tę samą dwie noce z rzędu.', wins: 'Wygrywasz, gdy wszyscy zabójcy zostaną złapani.' },
-  zabojca: { id: 'zabojca', name: 'Zabójca', faction: 'zabojcy', does: 'Co noc wybierasz ofiarę. Po udanej mini-grze podrzucasz fałszywy trop na kogoś innego. Kłam i odwracaj uwagę.', wins: 'Wygrywasz, gdy o świcie przynajmniej jeden zabójca jest na wolności.' },
+  zabojca: { id: 'zabojca', name: 'Zabójca', faction: 'zabojcy', does: 'Co noc wybierasz ofiarę i idziesz za nią do pokoju, w którym spędza noc. Tam grasz w mini-grę. Po udanej mini-grze podrzucasz fałszywy trop na kogoś innego. Kłam i odwracaj uwagę.', wins: 'Wygrywasz, gdy o świcie przynajmniej jeden zabójca jest na wolności.' },
   zlodziej: { id: 'zlodziej', name: 'Złodziej', faction: 'neutralni', does: 'Okradasz pokój, w którym spędzasz noc, jeśli jest tam z tobą najwyżej jedna osoba. Jeśli trafisz do aresztu, oddajesz łupy.', wins: 'Wygrywasz, gdy masz 3 pamiątki i na koniec nie siedzisz w areszcie.' },
   blazen: { id: 'blazen', name: 'Błazen', faction: 'neutralni', does: 'Grasz w mini-gry i zachowujesz się podejrzanie, żeby inni cię oskarżyli.', wins: 'Wygrywasz, gdy choć raz trafisz do aresztu.' },
 };

@@ -20,6 +20,7 @@ http.createServer((req, res) => {
     const send = (body: unknown, status = 200) => { res.writeHead(status, headers); res.end(JSON.stringify(body)); };
     const body = JSON.parse(raw || '{}');
     const now = Date.now();
+    if (body.op === 'log') { console.log('CLIENT', JSON.stringify(body.log)); return send({ ok: true }); }
     if (body.op === 'create') {
       const code = 'TEST';
       const g = createGame(code, now);

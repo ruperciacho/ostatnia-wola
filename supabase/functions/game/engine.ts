@@ -195,6 +195,11 @@ function setPhase(g: Game, phase: Phase, ctx: Ctx) {
   if (phase === 'accusation' || phase === 'dawn') g.votes = {};
 }
 
+/** Zabójca nie wybiera pokoju: idzie za ofiarą i spędza noc tam, gdzie ona. */
+export function followsTarget(g: Game, p: Player): boolean {
+  return p.status === 'active' && p.role === 'zabojca' && killTargets(g).length > 0;
+}
+
 function needsTarget(g: Game, p: Player): boolean {
   if (p.status !== 'active') return false;
   if (p.role === 'zabojca') return killTargets(g).length > 0;
@@ -205,7 +210,8 @@ function needsTarget(g: Game, p: Player): boolean {
 export function nightDone(g: Game, p: Player): boolean {
   const c = g.night[p.id] || {};
   if (p.status !== 'active') return !!c.task;
-  if (!c.room || !c.task) return false;
+  if (!c.task) return false;
+  if (!c.room && !followsTarget(g, p)) return false;
   if (needsTarget(g, p) && !c.target) return false;
   if (p.role === 'kamerdyner' && !c.watch) return false;
   return true;
@@ -370,10 +376,23 @@ function resolveNight(g: Game, ctx: Ctx) {
   const clock = hourLabel(g, hour);
   const act = active(g);
   const roomOf: Record<string, string> = {};
+  const followers = act.filter((p) => followsTarget(g, p));
   for (const p of act) {
+    if (followers.includes(p)) continue;
     const c = g.night[p.id] || (g.night[p.id] = {});
     if (!c.room) c.room = pick(ROOMS, rng).id;
     roomOf[p.id] = c.room;
+  }
+  // Zabójca spędza noc w pokoju swojego celu (bez celu: w losowym pokoju)
+  for (const k of followers) {
+    const c = g.night[k.id] || (g.night[k.id] = {});
+    const npc = g.settings.death ? undefined : g.npcs.find((n) => n.id === c.target && n.alive);
+    const r = (c.target && roomOf[c.target]) || npc?.room || c.room || pick(ROOMS, rng).id;
+    c.room = r;
+    roomOf[k.id] = r;
+    const tp = player(g, c.target);
+    const prey = tp ? who(tp) : npc?.name;
+    if (prey) note(k, hour, `${gf(k, 'Poszedłeś', 'Poszłaś')} za: ${prey}. Noc ${gf(k, 'spędziłeś', 'spędziłaś')} ${roomById(r)!.loc}.`, 'info');
   }
 
   // Zamach
@@ -404,7 +423,7 @@ function resolveNight(g: Game, ctx: Ctx) {
       const victim = player(g, targetId)!;
       attackRoom = roomOf[victim.id];
       const room = roomById(attackRoom)!;
-      const others = act.filter((p) => p.id !== victim.id && p.id !== executor!.id && roomOf[p.id] === attackRoom).length;
+      const others = act.filter((p) => p.id !== victim.id && p.role !== 'zabojca' && roomOf[p.id] === attackRoom).length;
       const medic = act.find((p) => p.role === 'lekarz' && g.night[p.id]?.target === victim.id);
       attacked = true;
       if (medic) {
@@ -432,6 +451,13 @@ function resolveNight(g: Game, ctx: Ctx) {
       lines.push(`${npc.name} nie żyje. ${npcFemale(npc.id) ? 'Znaleziono ją' : 'Znaleziono go'} ${room.loc}.`);
       lines.push(pick(room.deaths, rng));
     }
+  }
+
+  // Sprawca zawsze jest w pokoju ofiary (także gdy cel wylosował się sam, bo zabójca nie zdążył wybrać)
+  if (executor && attackRoom && roomOf[executor.id] !== attackRoom) {
+    roomOf[executor.id] = attackRoom;
+    logEntry.rooms[executor.id] = attackRoom;
+    (g.night[executor.id] || (g.night[executor.id] = {})).room = attackRoom;
   }
 
   // Kto był gdzie (sprawca liczy się w pokoju ofiary)
@@ -755,7 +781,8 @@ export function applyAction(g: Game, playerId: string | null, a: Action, ctx: Ct
       if (g.phase !== 'night') return { error: 'To nie jest pora nocy.' };
       if (me.status !== 'active') return { error: 'Jako duch albo w areszcie grasz tylko w mini-grę.' };
       const c = g.night[me.id] || (g.night[me.id] = {});
-      if (a.room !== undefined) {
+      const follows = followsTarget(g, me);
+      if (a.room !== undefined && !follows) {
         if (!roomById(a.room)) return { error: 'Nie ma takiego pokoju.' };
         c.room = a.room;
       }
@@ -774,6 +801,12 @@ export function applyAction(g: Game, playerId: string | null, a: Action, ctx: Ct
           return { error: 'Twoja rola nie wybiera nikogo w nocy.' };
         }
         c.target = a.target;
+        if (follows) {
+          // NPC stoi w znanym pokoju; gracz wybiera pokój w tajemnicy, więc pokój zabójcy ustalamy dopiero na koniec nocy
+          const npc = g.settings.death ? undefined : g.npcs.find((n) => n.id === a.target);
+          if (npc?.room) c.room = npc.room;
+          else delete c.room;
+        }
       }
       advance(g, ctx);
       return {};
@@ -783,7 +816,7 @@ export function applyAction(g: Game, playerId: string | null, a: Action, ctx: Ct
       const c = g.night[me.id] || (g.night[me.id] = {});
       if (c.task) return {};
       if (me.status === 'active') {
-        if (!c.room) return { error: 'Najpierw wybierz pokój.' };
+        if (!c.room && !followsTarget(g, me)) return { error: 'Najpierw wybierz pokój.' };
         if (needsTarget(g, me) && !c.target) return { error: 'Najpierw wybierz cel.' };
         if (me.role === 'kamerdyner' && !c.watch) return { error: 'Najpierw wybierz pokój do obserwacji.' };
       }
@@ -976,7 +1009,8 @@ export function playerView(g: Game, playerId: string, now: number) {
     }
     night = {
       choice: { room: choice.room ?? null, target: choice.target ?? null, watch: choice.watch ?? null, task: choice.task ?? null },
-      needsRoom: me.status === 'active',
+      needsRoom: me.status === 'active' && !followsTarget(g, me),
+      follows: followsTarget(g, me),
       needsWatch: me.status === 'active' && me.role === 'kamerdyner',
       targetKind: needsTarget(g, me) ? targetKind : null,
       targets,

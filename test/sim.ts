@@ -75,6 +75,9 @@ function simulate(seed: number, n: number, death: boolean, mode: '30' | '60', st
         applyAction(g, p.id, { type: 'ready' }, ctx());
       } else if (phase === 'night' && view.night) {
         const nv = view.night;
+        check(!(p.role === 'zabojca' && nv.targetKind === 'kill') || (nv.follows && !nv.needsRoom), `${label}: killer follows target instead of picking a room`);
+        // Klient zabójcy mógłby wysłać pokój: serwer go ignoruje
+        if (nv.follows) applyAction(g, p.id, { type: 'night', room: 'piwnica' }, ctx());
         if (nv.needsRoom && !nv.choice.room) applyAction(g, p.id, { type: 'night', room: ['biblioteka', 'kuchnia', 'gabinet', 'piwnica', 'oranzeria', 'strych'][Math.floor(rng() * 6)] }, ctx());
         if (g.phase !== 'night') break;
         if (nv.needsWatch) applyAction(g, p.id, { type: 'night', watch: 'kuchnia' }, ctx());
@@ -115,6 +118,9 @@ function simulate(seed: number, n: number, death: boolean, mode: '30' | '60', st
   check(g.hour <= g.hours, `${label}: hour within limit`);
   // Każdy zamach ma sprawcę, który jest zabójcą
   for (const l of g.log) if (l.executorId) check(g.players.find((p) => p.id === l.executorId)?.role === 'zabojca', `${label}: executor is killer`);
+  // Zabójca jest w tym samym pokoju co ofiara, a zabójca z celem nie wybiera pokoju sam
+  for (const l of g.log) if (l.executorId && l.victim) check(l.rooms[l.executorId] === l.victim.room, `${label}: executor in victim's room (hour ${l.hour})`);
+  for (const l of g.log) if (l.executorId && l.victim?.playerId) check(l.rooms[l.victim.playerId] === l.victim.room, `${label}: victim room matches log`);
   // Punkty zgadzają się z listą powodów
   for (const p of g.players) check(p.points === p.pointsLog.reduce((a, e) => a + e.pts, 0), `${label}: points match log`);
   // Niewinny siedzi w areszcie najwyżej godzinę: na koniec w areszcie tylko zabójcy albo zamknięci w ostatniej godzinie

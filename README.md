@@ -9,7 +9,9 @@ Imprezowa gra detektywistyczna dla 3–12 osób: wspólny ekran (TV, laptop, tab
 - Po starcie wszyscy widzą ekran zasad: role w tej grze (z liczbami), przebieg godziny, areszt, rozmowy i punkty. Gra rusza, gdy każdy kliknie „Rozumiem”.
 - Licznik czasu ma tylko noc (2 min, w spokojnym tempie 3 min); pozostałe fazy idą dalej po potwierdzeniu wszystkich albo po pominięciu przez hosta.
 - Głosy są jawne. Zabójca w areszcie zostaje do końca, każdy inny wychodzi po godzinie, a głosujący na niewinnego tracą punkt (zabójca i złodziej dostają +1 za machlojkę).
-- 12 mini-gier losowanych co noc dla każdego gracza i po 10 opisów śmierci na pokój.
+- 12 mini-gier losowanych co noc dla każdego gracza, każda w wersji dla pokoju, w którym gracz spędza noc (osobne wersje dla duchów, aresztantów i zabójcy skradającego się za ofiarą). Po 10 opisów śmierci na pokój.
+- Zabójca nie wybiera pokoju: idzie za ofiarą i spędza noc tam, gdzie ona.
+- Telefon sam przerysowuje ekran, który nie pasuje do stanu gry, i zgłasza to do logów funkcji (`client` w logach).
 
 ## Jak to działa
 
