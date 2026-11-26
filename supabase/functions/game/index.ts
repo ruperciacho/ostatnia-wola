@@ -1,11 +1,13 @@
 // Edge Function `game`: jedyne wejście do gry. Klienci nie mają dostępu do tabeli games.
-import { createClient } from 'npm:@supabase/supabase-js@2';
+// Gra ma własny schemat ostatnia_wola we wspólnej bazie MojeDoDomu. Schemat nie jest
+// wystawiony przez API bazy, więc łączymy się z Postgresem bezpośrednio (SUPABASE_DB_URL).
+import postgres from 'npm:postgres@3.4.5';
 import { applyAction, createGame, playerView, publicView } from './engine.ts';
 import type { Action, Game } from './engine.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const db = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+const sql = postgres(Deno.env.get('SUPABASE_DB_URL')!, { prepare: false, max: 1, idle_timeout: 20 });
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -33,9 +35,9 @@ function randomCode(): string {
 }
 
 async function load(code: string) {
-  const { data, error } = await db.from('games').select('state, version').eq('code', code).maybeSingle();
-  if (error) throw error;
-  return data as { state: Game; version: number } | null;
+  const rows = await sql<{ state: Game; version: number }[]>`
+    select state, version from ostatnia_wola.games where code = ${code}`;
+  return rows.length ? rows[0] : null;
 }
 
 async function broadcast(code: string, version: number) {
@@ -71,15 +73,19 @@ Deno.serve(async (req: Request) => {
     if (body.op === 'create') {
       // Sprzątanie: gry nieruszane od 2 dni
       if (Math.random() < 0.2) {
-        await db.from('games').delete().lt('updated_at', new Date(Date.now() - 2 * 86400_000).toISOString());
+        await sql`delete from ostatnia_wola.games where updated_at < now() - interval '2 days'`;
       }
       for (let i = 0; i < 10; i++) {
         const code = randomCode();
         const now = Date.now();
         const g = createGame(code, now);
-        const { error } = await db.from('games').insert({ code, state: g, version: 1 });
-        if (!error) return json({ code, version: 1, view: publicView(g, now) });
-        if (error.code !== '23505') throw error;
+        try {
+          await sql`insert into ostatnia_wola.games (code, state, version) values (${code}, ${sql.json(g as never)}, 1)`;
+          return json({ code, version: 1, view: publicView(g, now) });
+        } catch (e) {
+          // 23505 = kod już zajęty, losujemy inny
+          if ((e as { code?: string }).code !== '23505') throw e;
+        }
       }
       return json({ error: 'Nie udało się utworzyć pokoju' }, 500);
     }
@@ -111,14 +117,13 @@ Deno.serve(async (req: Request) => {
         const token = res.joined ? res.joined.token : body.token;
         if (res.error) return json({ error: res.error, version: row.version, view: viewFor(JSON.parse(before), token, now) });
         if (JSON.stringify(g) === before) return json({ version: row.version, view: viewFor(g, token, now), joined: res.joined });
-        const { data: upd, error } = await db
-          .from('games')
-          .update({ state: g, version: row.version + 1, updated_at: new Date(now).toISOString() })
-          .eq('code', code)
-          .eq('version', row.version)
-          .select('version');
-        if (error) throw error;
-        if (upd && upd.length) {
+        // Zapis tylko wtedy, gdy nikt nie zmienił gry w międzyczasie (wersja się zgadza)
+        const upd = await sql`
+          update ostatnia_wola.games
+          set state = ${sql.json(g as never)}, version = ${row.version + 1}, updated_at = ${new Date(now).toISOString()}
+          where code = ${code} and version = ${row.version}
+          returning version`;
+        if (upd.length) {
           await broadcast(code, row.version + 1);
           return json({ version: row.version + 1, view: viewFor(g, token, now), joined: res.joined });
         }

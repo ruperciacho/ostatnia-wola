@@ -14,7 +14,7 @@ Imprezowa gra detektywistyczna dla 3–12 osób: wspólny ekran (TV, laptop, tab
 ## Jak to działa
 
 - `index.html` — cała strona (ekran i telefon), budowana z `src/` przez `build.py`, serwowana przez GitHub Pages.
-- `supabase/functions/game/` — Edge Function `game` z silnikiem gry (`engine.ts`), scenariuszem (`data.ts`) i obsługą zapytań (`index.ts`). Stan gry trzyma tabela `games`; klienci nie mają do niej dostępu, każdy dostaje od funkcji tylko swój widok.
+- `supabase/functions/game/` — Edge Function `game` z silnikiem gry (`engine.ts`), scenariuszem (`data.ts`) i obsługą zapytań (`index.ts`). Stan gry trzyma tabela `ostatnia_wola.games` we wspólnej bazie Supabase „MojeDoDomu” (osobny schemat, tak jak `ptcg` i `pofo`). Schemat nie jest wystawiony przez API bazy: funkcja łączy się z Postgresem bezpośrednio (`SUPABASE_DB_URL`), a klienci dostają od niej tylko swój widok gry.
 - Realtime Broadcast (`ow:KOD`) tylko powiadamia o zmianie wersji; sekrety nigdy nie idą kanałem.
 
 ## Rozwój
@@ -26,4 +26,4 @@ npm test             # tysiące symulowanych partii + sprawdzenie, że widoki ni
 npm run mock         # lokalna atrapa funkcji na porcie 8790 (ten sam silnik)
 ```
 
-Wdrożenie funkcji: `supabase functions deploy game --no-verify-jwt` (funkcja sama sprawdza tokeny graczy).
+Wdrożenie funkcji: `supabase functions deploy game --no-verify-jwt` (funkcja sama sprawdza tokeny graczy). Zmiany w bazie: `supabase/migrations/`.
