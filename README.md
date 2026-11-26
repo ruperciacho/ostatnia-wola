@@ -11,6 +11,7 @@ Imprezowa gra detektywistyczna dla 3–12 osób: wspólny ekran (TV, laptop, tab
 - Głosy są jawne. Zabójca w areszcie zostaje do końca, każdy inny wychodzi po godzinie, a głosujący na niewinnego tracą punkt (zabójca i złodziej dostają +1 za machlojkę).
 - 12 mini-gier losowanych co noc dla każdego gracza, każda w wersji dla pokoju, w którym gracz spędza noc (osobne wersje dla duchów, aresztantów i zabójcy skradającego się za ofiarą). Po 10 opisów śmierci na pokój.
 - Zabójca nie wybiera pokoju: idzie za ofiarą i spędza noc tam, gdzie ona.
+- Mini-gry mają 4 poziomy trudności: spokojne tempo zaczyna od 0, normalne od 1, a w drugiej połowie nocy poziom rośnie. Każda pomyłka zabiera serce (2–3 na grę).
 - Telefon sam przerysowuje ekran, który nie pasuje do stanu gry, i zgłasza to do logów funkcji (`client` w logach).
 
 ## Jak to działa

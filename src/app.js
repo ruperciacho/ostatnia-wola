@@ -824,7 +824,7 @@
     var thief = hasRole(setup, 'zlodziej');
     var hour = [
       'Noc (' + nightMin(setup) + '): na telefonie wybierasz pokój i grasz w mini-grę. Udana mini-gra: +1 punkt i poszlaka. ' +
-        (short ? 'Rezygnacja albo koniec czasu: nic.' : 'Jeśli zrezygnujesz albo nie zdążysz, nic nie dostajesz, a pokój wylosuje się sam.'),
+        (short ? 'Pomyłki zabierają serca. Z każdą godziną gry są trudniejsze.' : 'Każda pomyłka zabiera serce. Bez serc, po rezygnacji albo po czasie nic nie dostajesz. Z każdą godziną mini-gry są trudniejsze. Kto nie wybierze pokoju do końca nocy, dostaje losowy.'),
       'Poranek: co się stało w nocy i nowe poszlaki. Kliknij „Przeczytane”.',
       'Narada: rozmawiacie przy stole. Kto chce przejść do głosowania, klika „Chcę głosować”.',
       'Oskarżenie: głosujecie na telefonach. Ponad połowa głosów = areszt.',
@@ -930,8 +930,8 @@
           var extra = me.role && me.role.id === 'lekarz' ? ' Wybierz, kogo chronisz.' : me.role && me.role.id === 'kamerdyner' ? ' Wybierz, który pokój obserwujesz.' : '';
           return 'Wybierz pokój, w którym zagrasz w mini-grę.' + extra + ' Jeśli nie zdążysz do końca nocy, pokój wylosuje się sam.';
         }
-        if (step === 'task' && me.role && me.role.id === 'zabojca') return 'Udana mini-gra: +1 punkt i możesz podrzucić fałszywy trop. „Rezygnuję” albo koniec czasu: nic nie dostajesz.';
-        if (step === 'task') return 'Udana mini-gra: +1 punkt i poszlaka. „Rezygnuję” albo koniec czasu: nic nie dostajesz.';
+        if (step === 'task' && me.role && me.role.id === 'zabojca') return 'Udana mini-gra: +1 punkt i możesz podrzucić fałszywy trop. Każda pomyłka zabiera serce ♥. Bez serc, po „Rezygnuję” albo po czasie nic nie dostajesz.';
+        if (step === 'task') return 'Udana mini-gra: +1 punkt i poszlaka. Każda pomyłka zabiera serce ♥. Bez serc, po „Rezygnuję” albo po czasie nic nie dostajesz.';
         return 'Czekamy, aż wszyscy skończą noc. Możecie rozmawiać.';
       }
       case 'morning': return 'Przeczytaj, co się stało, i swoje nowe poszlaki (są też w zakładce Notes). Potem „Przeczytane”.';
@@ -1068,8 +1068,7 @@
       (ghost ? '<p class="muted">' + (me.status === 'dead' ? 'Jako duch pomagasz z zaświatów' : 'Z aresztu też pomagasz') + ': co 3 udane mini-gry duchów i aresztantów odsłaniają poszlakę.</p>' : '') +
       '<div id="game"></div></div>' + hostBar(v));
     bindSkip(root);
-    var calm = !!(v.settings && v.settings.calm);
-    currentGame = runMiniGame($('game'), pickGame(v), calm, theme, function (success) {
+    currentGame = runMiniGame($('game'), pickGame(v), gameLevel(v), theme, function (success) {
       currentGame = null;
       if (success && n.frameTargets && n.frameTargets.length) return chooseFrame(v, n.frameTargets);
       sendTask(success);
@@ -1263,42 +1262,72 @@
   function rnd(n) { return Math.floor(Math.random() * n); }
   function pickOne(a) { return a[rnd(a.length)]; }
 
-  function runMiniGame(box, kind, calm, themeId, done) {
+  // Poziom trudności 0–3. Spokojne tempo zaczyna od 0, normalne od 1; im później w nocy, tym trudniej.
+  function gameLevel(v) {
+    var base = v.settings && v.settings.calm ? 0 : 1;
+    var hours = v.hours || 4;
+    var ramp = Math.min(2, Math.floor((Math.max(1, v.hour) - 1) * 3 / hours));
+    return Math.min(3, base + ramp);
+  }
+
+  function runMiniGame(box, kind, lvl, themeId, done) {
+    if (lvl === true) lvl = 0;
+    if (lvl === false || typeof lvl !== 'number') lvl = 1;
+    lvl = Math.max(0, Math.min(3, lvl));
+    function L(arr) { return arr[lvl]; }
     var T = THEMES[themeId] || THEMES.biblioteka;
     // Mini-gra trwa do końca nocy (noc ma limit 2 min, w spokojnym tempie 3 min)
     var deadline = G.view && G.view.endsAt ? G.view.endsAt - 1500 : serverNow() + 120000;
     var finished = false;
     var timers = [];
     var raf = null;
-    function finish(ok) {
+    // Serca: każda pomyłka zabiera jedno, bez serc mini-gra przepada
+    var lives = L([3, 3, 2, 2]);
+    function finish(ok, why) {
       if (finished) return;
       finished = true;
       stop();
-      box.innerHTML = '<div class="game-box center"><h2 class="' + (ok ? 'gold' : 'muted') + '">' + (ok ? 'Udało się!' : 'Nie tym razem.') + '</h2><p class="muted">Zapisuję…</p></div>';
+      box.innerHTML = '<div class="game-box center"><h2 class="' + (ok ? 'gold' : 'muted') + '">' + (ok ? 'Udało się!' : 'Nie tym razem.') + '</h2>' +
+        (why ? '<p>' + esc(why) + '</p>' : '') + '<p class="muted">Zapisuję…</p></div>';
       done(ok);
     }
     function stop() {
       timers.forEach(function (t) { clearInterval(t); clearTimeout(t); });
       if (raf) cancelAnimationFrame(raf);
     }
-    function later(fn, ms) { timers.push(setTimeout(fn, ms)); }
-    box.innerHTML = '<div class="game-box"><div class="row" style="justify-content:space-between"><span id="g-title"></span><span id="g-time" class="timer"></span></div>' +
-      '<p id="g-help" class="muted"></p><div id="g-area" class="stack" data-game="' + kind + '" data-theme="' + themeId + '"></div><button id="g-quit" class="secondary">Rezygnuję</button></div>';
+    function later(fn, ms) { if (!finished) timers.push(setTimeout(fn, ms)); }
+    box.innerHTML = '<div class="game-box"><div class="row" style="justify-content:space-between"><span id="g-title"></span>' +
+      '<span><span id="g-lives" class="lives"></span> <span id="g-time" class="timer"></span></span></div>' +
+      '<p id="g-help" class="muted"></p><div id="g-area" class="stack" data-game="' + kind + '" data-theme="' + themeId + '" data-level="' + lvl + '"></div><button id="g-quit" class="secondary">Rezygnuję</button></div>';
     box.querySelector('#g-quit').addEventListener('click', function () { finish(false); });
     timers.push(setInterval(function () {
       var left = deadline - serverNow();
       var t = box.querySelector('#g-time');
       if (t) t.textContent = fmtTime(left);
-      if (left <= 0) finish(false);
+      if (left <= 0) finish(false, 'Koniec czasu.');
     }, 250));
     var title = box.querySelector('#g-title');
     var help = box.querySelector('#g-help');
     var area = box.querySelector('#g-area');
+    function showLives() {
+      var el = box.querySelector('#g-lives');
+      if (el) el.textContent = lives === Infinity ? '' : new Array(lives + 1).join('♥');
+    }
+    showLives();
     function progress(n, of) { return '<p class="center muted">Dobrze: ' + n + '/' + of + '</p>'; }
     function flashWrong(b) {
       if (!b) return;
       b.classList.add('wrong');
       later(function () { b.classList.remove('wrong'); }, 450);
+    }
+    // Pomyłka: zabiera serce; zwraca true, gdy mini-gra właśnie przepadła
+    function miss(b) {
+      flashWrong(b);
+      if (lives === Infinity) return false;
+      lives--;
+      showLives();
+      if (lives <= 0) { finish(false, 'Za dużo pomyłek.'); return true; }
+      return false;
     }
     // Siatka przycisków z emoji; onTap(index, button)
     function grid(cells, cols, onTap) {
@@ -1310,19 +1339,67 @@
         onTap(Number(b.getAttribute('data-i')), b);
       });
     }
+    // Pytanie z kilkoma odpowiedziami; need dobrych odpowiedzi, pomyłki zabierają serca
+    function quiz(need, make) {
+      var good = 0;
+      function q() {
+        var it = make();
+        area.innerHTML = it.html + progress(good, need) + '<div class="game-items">' +
+          shuffle(it.opts.slice()).map(function (o) { return '<button class="secondary' + (it.emoji ? ' emoji-btn' : '') + '" data-v="' + esc(String(o)) + '">' + esc(String(o)) + '</button>'; }).join('') + '</div>';
+        if (it.attr) for (var k in it.attr) area.setAttribute(k, it.attr[k]);
+        area.querySelector('.game-items').addEventListener('click', function (e) {
+          var b = e.target.closest('button');
+          if (!b || b.disabled) return;
+          if (b.getAttribute('data-v') === String(it.ans)) {
+            good++;
+            if (good >= need) { finish(true); return; }
+            later(q, 300);
+          } else if (!miss(b)) {
+            b.disabled = true;
+          }
+        });
+      }
+      q();
+    }
+    // Odpowiedzi blisko wyniku, żeby trzeba było naprawdę policzyć
+    function nearOptions(ans, spread, n) {
+      var opts = [ans];
+      var tries = 0;
+      while (opts.length < n && tries++ < 200) {
+        var d = 1 + rnd(spread);
+        var o = rnd(2) ? ans + d : ans - d;
+        if (rnd(4) === 0 && ans >= 10) o = rnd(2) ? ans + 10 : ans - 10;
+        if (o > 0 && opts.indexOf(o) < 0) opts.push(o);
+      }
+      return opts;
+    }
+    // Wybór n różnych elementów
+    function sample(arr, n) { return shuffle(arr.slice()).slice(0, n); }
 
     var G_ = {
-      // 1. Tomy w kolejności alfabetycznej
+      // 1. Alfabetycznie. Poziom 0: zestaw z różnymi pierwszymi literami; wyżej: więcej słów z całej puli
       books: function () {
-        var items = pickOne(T.order.sets).slice().sort(function (a, b) { return a.localeCompare(b, 'pl'); });
+        var n = L([5, 6, 7, 8]);
+        var pool = [];
+        T.order.sets.forEach(function (s) { s.forEach(function (w) { if (pool.indexOf(w) < 0) pool.push(w); }); });
+        var items = lvl === 0 ? pickOne(T.order.sets).slice() : sample(pool, Math.min(n, pool.length));
+        items.sort(function (a, b) { return a.localeCompare(b, 'pl'); });
         title.textContent = T.order.t;
         help.textContent = T.order.h;
         orderGame(items);
       },
-      // 2. Daty od najdawniejszej
+      // 2. Daty od najdawniejszej: wyżej więcej dat i bliżej siebie
       years: function () {
+        var n = L([5, 6, 7, 8]);
+        var span = L([290, 200, 120, 60]);
+        var gap = L([5, 3, 2, 1]);
+        var from = 1700 + rnd(290 - span + 1);
         var ys = [];
-        while (ys.length < 5) { var y = 1700 + rnd(290); if (ys.every(function (x) { return Math.abs(x - y) > 4; })) ys.push(y); }
+        var tries = 0;
+        while (ys.length < n && tries++ < 1000) {
+          var y = from + rnd(span);
+          if (ys.every(function (x) { return Math.abs(x - y) >= gap; })) ys.push(y);
+        }
         ys.sort(function (a, b) { return a - b; });
         title.textContent = T.years.t;
         help.textContent = T.years.h;
@@ -1330,13 +1407,17 @@
       },
       // 3. Refleks: znacznik w zielonym polu
       timing: function () {
+        var need = L([3, 3, 4, 4]);
         title.textContent = pickOne(T.timing);
-        help.textContent = 'Stuknij „Teraz!”, gdy znacznik jest w zielonym polu. Potrzebne 3 trafienia.';
-        var zoneW = calm ? 30 : 22;
-        var speed = calm ? 0.55 : 0.8;
+        help.textContent = 'Stuknij „Teraz!”, gdy znacznik jest w zielonym polu. Potrzebne trafienia: ' + need + '.';
+        lives += 1; // tu pudła zdarzają się częściej
+        showLives();
+        var zoneW = L([22, 18, 15, 13]);
+        var speed = L([0.7, 0.8, 0.9, 1.0]);
         var hits = 0;
         var zoneX = 0;
-        area.innerHTML = '<div class="bar"><div class="zone"></div><div class="marker"></div></div><div class="hits center">○○○</div><button class="big-btn" id="g-now">Teraz!</button>';
+        var empty = new Array(need + 1).join('○');
+        area.innerHTML = '<div class="bar"><div class="zone"></div><div class="marker"></div></div><div class="hits center">' + empty + '</div><button class="big-btn" id="g-now">Teraz!</button>';
         var zone = area.querySelector('.zone');
         var marker = area.querySelector('.marker');
         var hitsEl = area.querySelector('.hits');
@@ -1359,21 +1440,24 @@
         area.querySelector('#g-now').addEventListener('click', function () {
           if (pos >= zoneX && pos <= zoneX + zoneW) {
             hits++;
-            hitsEl.textContent = '●●●'.slice(0, hits) + '○○○'.slice(hits);
-            if (hits >= 3) { finish(true); return; }
+            hitsEl.textContent = new Array(hits + 1).join('●') + empty.slice(hits);
+            if (hits >= need) { finish(true); return; }
             placeZone();
           } else {
             hitsEl.style.color = 'var(--bad)';
             later(function () { hitsEl.style.color = ''; }, 300);
+            miss(null);
           }
         });
       },
-      // 4. Zapamiętaj kolejność
+      // 4. Zapamiętaj kolejność: wyżej dłuższa i krócej widoczna
       sequence: function () {
         var th = T.sequence;
         title.textContent = th.t;
-        var seq = shuffle(th.pool).slice(0, calm ? 3 : 4);
-        var showMs = calm ? 6000 : 4000;
+        var len = L([4, 5, 6, 7]);
+        var seq = sample(th.pool, len);
+        var showMs = len * L([1300, 1000, 850, 700]);
+        var decoys = L([2, 2, 3, 3]);
         var at = 0;
         function show() {
           help.textContent = 'Zapamiętaj kolejność:';
@@ -1383,15 +1467,15 @@
         function ask() {
           at = 0;
           help.textContent = 'Stukaj w tej samej kolejności.';
-          var opts = shuffle(seq.concat(shuffle(th.pool.filter(function (y) { return seq.indexOf(y) < 0; })).slice(0, 2)));
-          area.innerHTML = '<div class="game-items">' + opts.map(function (y) { return '<button class="secondary" data-v="' + y + '">' + y + '</button>'; }).join('') + '</div>';
+          var opts = shuffle(seq.concat(sample(th.pool.filter(function (y) { return seq.indexOf(y) < 0; }), decoys)));
+          area.innerHTML = '<div class="game-items">' + opts.map(function (y) { return '<button class="secondary" data-v="' + esc(y) + '">' + esc(y) + '</button>'; }).join('') + '</div>';
           area.querySelector('.game-items').addEventListener('click', function (e) {
             var b = e.target.closest('button');
             if (!b || b.disabled) return;
             if (b.getAttribute('data-v') === seq[at]) {
               b.className = 'done'; b.disabled = true; at++;
               if (at === seq.length) finish(true);
-            } else {
+            } else if (!miss(b)) {
               help.textContent = 'Pomyłka. Pokażę jeszcze raz.';
               later(show, 700);
             }
@@ -1399,38 +1483,43 @@
         }
         show();
       },
-      // 5. Rachunki do sejfu
+      // 5. Rachunki: wyżej większe liczby, mnożenie i działania w dwóch krokach
       math: function () {
         title.textContent = pickOne(T.math);
-        help.textContent = 'Policz i wybierz wynik. Potrzebne 3 dobre odpowiedzi.';
-        var good = 0;
-        function q() {
-          var a = 2 + rnd(8), b = 2 + rnd(8), kind = rnd(3), ans, text;
-          if (kind === 0) { ans = a + b; text = a + ' + ' + b; }
-          else if (kind === 1) { ans = a * 2; text = 'dwa razy ' + a; }
-          else { var big = a + b; ans = big - b; text = big + ' − ' + b; }
-          var opts = [ans];
-          while (opts.length < 4) { var o = ans + rnd(7) - 3; if (o > 0 && opts.indexOf(o) < 0) opts.push(o); }
-          area.innerHTML = '<p class="center q-big">' + text + ' = ?</p>' + progress(good, 3) + '<div class="game-items">' +
-            shuffle(opts).map(function (o) { return '<button class="secondary" data-v="' + o + '">' + o + '</button>'; }).join('') + '</div>';
-          area.querySelector('.game-items').addEventListener('click', function (e) {
-            var btn = e.target.closest('button');
-            if (!btn) return;
-            if (Number(btn.getAttribute('data-v')) === ans) { good++; if (good >= 3) { finish(true); return; } }
-            else flashWrong(btn);
-            later(q, 350);
-          });
+        var need = L([3, 3, 4, 4]);
+        help.textContent = 'Policz i wybierz wynik. Potrzebne dobre odpowiedzi: ' + need + '.';
+        function make() {
+          var a, b, c, ans, text, kind = rnd(3);
+          if (lvl === 0) {
+            if (kind === 0) { a = 5 + rnd(16); b = 5 + rnd(16); ans = a + b; text = a + ' + ' + b; }
+            else if (kind === 1) { a = 10 + rnd(21); b = 2 + rnd(a - 3); ans = a - b; text = a + ' − ' + b; }
+            else { a = 2 + rnd(4); b = 2 + rnd(5); ans = a * b; text = a + ' × ' + b; }
+          } else if (lvl === 1) {
+            if (kind === 0) { a = 12 + rnd(48); b = 12 + rnd(38); ans = a + b; text = a + ' + ' + b; }
+            else if (kind === 1) { a = 30 + rnd(60); b = 11 + rnd(a - 15); ans = a - b; text = a + ' − ' + b; }
+            else { a = 3 + rnd(7); b = 3 + rnd(7); ans = a * b; text = a + ' × ' + b; }
+          } else if (lvl === 2) {
+            if (kind === 0) { a = 4 + rnd(6); b = 6 + rnd(7); ans = a * b; text = a + ' × ' + b; }
+            else if (kind === 1) { a = 20 + rnd(50); b = 10 + rnd(40); c = 5 + rnd(Math.min(30, a + b - 6)); ans = a + b - c; text = a + ' + ' + b + ' − ' + c; }
+            else { a = 45 + rnd(55); b = 17 + rnd(a - 20); ans = a - b; text = a + ' − ' + b; }
+          } else {
+            if (kind === 0) { a = 3 + rnd(7); b = 4 + rnd(6); c = 5 + rnd(20); ans = a * b + c; text = a + ' × ' + b + ' + ' + c; }
+            else if (kind === 1) { a = 2 + rnd(8); b = 3 + rnd(9); c = 3 + rnd(4); ans = (a + b) * c; text = '(' + a + ' + ' + b + ') × ' + c; }
+            else { a = 60 + rnd(90); b = 25 + rnd(Math.min(60, a - 30)); c = 5 + rnd(20); ans = a - b + c; text = a + ' − ' + b + ' + ' + c; }
+          }
+          return { html: '<p class="center q-big">' + text + ' = ?</p>', opts: nearOptions(ans, lvl >= 2 ? 4 : 3, 4), ans: ans };
         }
-        q();
+        quiz(need, make);
       },
-      // 6. Kolorowe dzwonki: powtórz sekwencję
+      // 6. Kolorowe pola: powtórz coraz dłuższą i szybszą sekwencję
       simon: function () {
         title.textContent = T.simon;
         var colors = ['red', 'blue', 'green', 'gold'];
         var seq = [];
-        for (var i = 0; i < (calm ? 3 : 4); i++) seq.push(rnd(4));
+        var len = L([4, 5, 6, 7]);
+        for (var i = 0; i < len; i++) seq.push(rnd(4));
         var at = 0;
-        var flashMs = calm ? 800 : 600;
+        var flashMs = L([700, 550, 450, 380]);
         area.innerHTML = '<div class="simon">' + colors.map(function (c, i) { return '<button class="pad ' + c + '" data-i="' + i + '" disabled></button>'; }).join('') + '</div>';
         var pads = area.querySelectorAll('.pad');
         function setEnabled(on) { for (var i = 0; i < pads.length; i++) pads[i].disabled = !on; }
@@ -1439,10 +1528,10 @@
           setEnabled(false);
           at = 0;
           seq.forEach(function (c, k) {
-            later(function () { pads[c].classList.add('lit'); }, 500 + k * (flashMs + 200));
-            later(function () { pads[c].classList.remove('lit'); }, 500 + k * (flashMs + 200) + flashMs);
+            later(function () { pads[c].classList.add('lit'); }, 500 + k * (flashMs + 180));
+            later(function () { pads[c].classList.remove('lit'); }, 500 + k * (flashMs + 180) + flashMs);
           });
-          later(function () { help.textContent = 'Twoja kolej: stukaj w tej samej kolejności.'; setEnabled(true); }, 500 + seq.length * (flashMs + 200));
+          later(function () { help.textContent = 'Twoja kolej: stukaj w tej samej kolejności.'; setEnabled(true); }, 500 + seq.length * (flashMs + 180));
         }
         area.setAttribute('data-seq', seq.join(''));
         area.querySelector('.simon').addEventListener('click', function (e) {
@@ -1452,70 +1541,68 @@
           b.classList.add('lit');
           later(function () { b.classList.remove('lit'); }, 200);
           if (i === seq[at]) { at++; if (at === seq.length) finish(true); }
-          else { help.textContent = 'Pomyłka. Patrz jeszcze raz.'; later(play, 600); setEnabled(false); }
+          else if (!miss(null)) { help.textContent = 'Pomyłka. Patrz jeszcze raz.'; setEnabled(false); later(play, 600); }
         });
         play();
       },
-      // 7. Znajdź inny przedmiot
+      // 7. Znajdź inny przedmiot: wyżej większa plansza i więcej rund
       odd: function () {
+        var need = L([3, 3, 4, 4]);
+        var size = L([4, 5, 5, 6]);
         title.textContent = 'Coś tu nie pasuje';
-        help.textContent = 'Znajdź jeden przedmiot inny niż reszta. Trzy razy.';
-        var pairs = T.odd;
+        help.textContent = 'Znajdź jeden przedmiot inny niż reszta. Potrzebne trafienia: ' + need + '.';
         var good = 0;
-        var size = calm ? 3 : 4;
         function round() {
-          var pr = pickOne(pairs);
+          var pr = pickOne(T.odd);
+          if (rnd(2)) pr = [pr[1], pr[0]];
           var n = size * size;
           var oddAt = rnd(n);
           var cells = [];
           for (var i = 0; i < n; i++) cells.push(i === oddAt ? pr[1] : pr[0]);
           grid(cells, size, function (i, b) {
-            if (i === oddAt) { good++; if (good >= 3) finish(true); else round(); }
-            else flashWrong(b);
+            if (i === oddAt) { good++; if (good >= need) finish(true); else round(); }
+            else miss(b);
           });
-          area.insertAdjacentHTML('beforeend', progress(good, 3));
+          area.insertAdjacentHTML('beforeend', progress(good, need));
         }
         round();
       },
-      // 8. Policz przedmioty
+      // 8. Policz przedmioty: wyżej więcej przedmiotów i bliższe odpowiedzi
       count: function () {
         title.textContent = 'Inwentaryzacja';
-        var targets = T.count.items;
-        var fillers = T.count.fill;
-        var good = 0;
-        function q() {
-          var t = pickOne(targets);
-          var total = calm ? 9 : 12;
-          var k = 2 + rnd(calm ? 4 : 6);
+        var need = L([3, 3, 4, 4]);
+        var total = L([12, 16, 20, 25]);
+        var cols = L([4, 4, 5, 5]);
+        help.textContent = 'Policz wskazane przedmioty. Potrzebne dobre odpowiedzi: ' + need + '.';
+        quiz(need, function () {
+          var t = pickOne(T.count.items);
+          var k = 3 + rnd(L([4, 6, 8, 10]));
           var cells = [];
-          for (var i = 0; i < total; i++) cells.push(i < k ? t.e : pickOne(fillers));
+          for (var i = 0; i < total; i++) cells.push(i < k ? t.e : pickOne(T.count.fill));
           cells = shuffle(cells);
-          var opts = [k];
-          while (opts.length < 4) { var o = k + rnd(5) - 2; if (o > 0 && opts.indexOf(o) < 0) opts.push(o); }
-          area.innerHTML = '<p class="center">Ile jest ' + t.n + ' ' + t.e + '?</p><div class="game-grid static" style="grid-template-columns:repeat(' + (calm ? 3 : 4) + ',1fr)">' +
-            cells.map(function (c) { return '<span class="cell">' + c + '</span>'; }).join('') + '</div>' + progress(good, 3) +
-            '<div class="game-items">' + shuffle(opts).map(function (o) { return '<button class="secondary" data-v="' + o + '">' + o + '</button>'; }).join('') + '</div>';
-          area.setAttribute('data-target', t.e);
-          area.querySelector('.game-items').addEventListener('click', function (e) {
-            var b = e.target.closest('button');
-            if (!b) return;
-            if (Number(b.getAttribute('data-v')) === k) { good++; if (good >= 3) { finish(true); return; } }
-            else flashWrong(b);
-            later(q, 350);
-          });
-        }
-        help.textContent = 'Policz wskazane przedmioty. Potrzebne 3 dobre odpowiedzi.';
-        q();
+          return {
+            html: '<p class="center">Ile jest ' + t.n + ' ' + t.e + '?</p><div class="game-grid static" style="grid-template-columns:repeat(' + cols + ',1fr)">' +
+              cells.map(function (c) { return '<span class="cell">' + c + '</span>'; }).join('') + '</div>',
+            opts: nearOptions(k, 2, 4), ans: k, attr: { 'data-target': t.e }
+          };
+        });
       },
-      // 9. Pary kart
+      // 9. Pary kart: wyżej więcej par i ograniczona liczba nietrafionych prób
       pairs: function () {
+        var n = L([4, 5, 6, 8]);
+        var budget = n + L([5, 4, 3, 3]);
+        var wrong = 0;
+        lives = Infinity;
+        showLives();
         title.textContent = 'Znajdź pary';
-        help.textContent = 'Odkrywaj po dwie karty i znajdź wszystkie pary.';
-        var pool = shuffle(T.pairs.slice()).slice(0, calm ? 3 : 4);
+        function info() { help.textContent = 'Odkrywaj po dwie karty i znajdź wszystkie pary. Nietrafione: ' + wrong + '/' + budget + '.'; }
+        info();
+        var pool = sample(T.pairs, n);
         var deck = shuffle(pool.concat(pool));
         var open = [];
         var matched = 0;
         var lock = false;
+        var flipBack = L([800, 650, 550, 450]);
         grid(deck.map(function () { return '❔'; }), 4, function (i, b) {
           if (lock || b.classList.contains('done') || open.indexOf(i) >= 0) return;
           b.textContent = deck[i];
@@ -1530,81 +1617,85 @@
             matched++;
             if (matched === pool.length) later(function () { finish(true); }, 300);
           } else {
+            wrong++;
+            info();
+            if (wrong >= budget) { later(function () { finish(false, 'Za dużo nietrafionych prób.'); }, 400); lock = true; return; }
             lock = true;
-            later(function () { cells[a].textContent = '❔'; cells[c].textContent = '❔'; open = []; lock = false; }, 700);
+            later(function () { cells[a].textContent = '❔'; cells[c].textContent = '❔'; open = []; lock = false; }, flipBack);
           }
         });
       },
-      // 10. Znajdź wszystkie wskazane przedmioty
+      // 10. Znajdź wszystkie wskazane przedmioty: wyżej większa plansza
       find: function () {
-        var targets = T.find.items;
-        var fillers = T.find.fill;
-        var tg = pickOne(targets);
+        var tg = pickOne(T.find.items);
         title.textContent = tg.t;
-        var n = calm ? 12 : 16;
-        var k = calm ? 4 : 5;
+        var n = L([16, 20, 25, 30]);
+        var k = L([5, 6, 7, 8]);
+        var cols = L([4, 4, 5, 5]);
         var cells = [];
-        for (var i = 0; i < n; i++) cells.push(i < k ? tg.e : pickOne(fillers));
+        for (var i = 0; i < n; i++) cells.push(i < k ? tg.e : pickOne(T.find.fill));
         cells = shuffle(cells);
         var left = k;
         help.textContent = 'Stukaj tylko w ' + tg.e + '. Zostało: ' + left + '.';
         area.setAttribute('data-target', tg.e);
-        grid(cells, 4, function (i, b) {
+        grid(cells, cols, function (i, b) {
           if (cells[i] === tg.e) {
             b.classList.add('done'); b.disabled = true; left--;
             help.textContent = 'Stukaj tylko w ' + tg.e + '. Zostało: ' + left + '.';
             if (left === 0) finish(true);
-          } else flashWrong(b);
+          } else miss(b);
         });
       },
-      // 11. Co będzie następne we wzorze
+      // 11. Co dalej we wzorze: wyżej dłuższe i bardziej podchwytliwe wzory
       pattern: function () {
         title.textContent = T.pattern.t;
-        help.textContent = 'Co powinno być w miejscu znaku zapytania? Potrzebne 3 dobre odpowiedzi.';
-        var sets = T.pattern.sets;
-        var shapes = [[0, 1], [0, 0, 1], [0, 1, 2], [0, 1, 1], [0, 1, 2, 1]];
-        var good = 0;
-        function q() {
-          var s = pickOne(sets);
+        var need = L([3, 3, 4, 4]);
+        help.textContent = 'Co powinno być w miejscu znaku zapytania? Potrzebne dobre odpowiedzi: ' + need + '.';
+        var shapes = [[0, 1], [0, 0, 1], [0, 1, 2], [0, 1, 1]];
+        if (lvl >= 1) shapes = shapes.concat([[0, 1, 2, 1], [0, 0, 1, 1]]);
+        if (lvl >= 2) shapes = [[0, 1, 2, 1], [0, 0, 1, 1], [0, 1, 0, 2], [0, 0, 1, 2], [0, 1, 2, 2, 1], [0, 1, 1, 2, 2]];
+        quiz(need, function () {
+          var s = pickOne(T.pattern.sets);
           var sh = pickOne(shapes);
           var len = sh.length * 2 + rnd(sh.length);
           var seq = [];
           for (var i = 0; i < len; i++) seq.push(s[sh[i % sh.length]]);
-          var ans = s[sh[len % sh.length]];
-          area.innerHTML = '<p class="center seq-show">' + seq.join(' ') + ' ❓</p>' + progress(good, 3) + '<div class="game-items">' +
-            shuffle(s.slice()).map(function (o) { return '<button class="secondary emoji-btn" data-v="' + o + '">' + o + '</button>'; }).join('') + '</div>';
-          area.querySelector('.game-items').addEventListener('click', function (e) {
-            var b = e.target.closest('button');
-            if (!b) return;
-            if (b.getAttribute('data-v') === ans) { good++; if (good >= 3) { finish(true); return; } }
-            else flashWrong(b);
-            later(q, 350);
-          });
-        }
-        q();
+          return { html: '<p class="center seq-show">' + seq.join(' ') + ' ❓</p>', opts: s.slice(), ans: s[sh[len % sh.length]], emoji: true };
+        });
       },
       // 12. Złap, zanim zniknie (duch, mysz, motyl… zależnie od pokoju)
       ghost: function () {
         var C = T.catch;
         title.textContent = C.t;
-        var need = calm ? 4 : 5;
-        var stay = calm ? 1400 : 950;
+        var need = L([5, 6, 7, 8]);
+        var stay = L([1100, 900, 750, 650]);
+        var count = L([9, 9, 12, 12]);
+        var cols = count === 9 ? 3 : 4;
         var hits = 0;
         var at = -1;
+        var prev = -1;
+        var movedAt = 0;
         help.textContent = C.h + ' Trafienia: 0/' + need + '.';
-        grid(['', '', '', '', '', '', '', '', ''], 3, function (i, b) {
-          if (i !== at) return;
+        var blank = [];
+        for (var i = 0; i < count; i++) blank.push('');
+        grid(blank, cols, function (i, b) {
+          // Tuż po ucieczce stuknięcie w poprzednie miejsce też się liczy
+          var late = i === prev && performance.now() - movedAt < 250;
+          if (i !== at && !late) { miss(b); return; }
           hits++;
           b.textContent = '✨';
-          at = -1;
+          if (i === at) at = -1;
+          prev = -1;
           help.textContent = C.h + ' Trafienia: ' + hits + '/' + need + '.';
           if (hits >= need) finish(true);
         });
         var cells = area.querySelectorAll('.cell');
         function move() {
           for (var i = 0; i < cells.length; i++) cells[i].textContent = '';
-          var next = rnd(9);
-          if (next === at) next = (next + 1 + rnd(8)) % 9;
+          var next = rnd(count);
+          if (next === at) next = (next + 1 + rnd(count - 1)) % count;
+          prev = at;
+          movedAt = performance.now();
           at = next;
           cells[at].textContent = C.e;
           later(move, stay);
@@ -1623,7 +1714,7 @@
         if (b.getAttribute('data-v') === items[next]) {
           b.className = 'done'; b.disabled = true; next++;
           if (next === items.length) finish(true);
-        } else flashWrong(b);
+        } else miss(b);
       });
       area.setAttribute('data-order', items.join('|'));
     }
@@ -1743,7 +1834,7 @@
   // ---------- routing ----------
   // Tryb testowy mini-gier: ?dev=1 (używany tylko przez testy automatyczne)
   if (params.get('dev') === '1') {
-    window.__owDev = { GAMES: GAMES, THEMES: Object.keys(THEMES), run: function (box, kind, calm, done, theme) { return runMiniGame(box, kind, calm, theme || 'biblioteka', done); } };
+    window.__owDev = { GAMES: GAMES, THEMES: Object.keys(THEMES), run: function (box, kind, lvl, done, theme) { return runMiniGame(box, kind, lvl, theme || 'biblioteka', done); } };
     return;
   }
   var playCode = cleanCode(params.get('p'));
