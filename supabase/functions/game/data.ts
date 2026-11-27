@@ -214,8 +214,14 @@ export function roleDistribution(n: number, death: boolean): RoleId[] {
   return roles;
 }
 
-export const INTRO: string[] = [
-  'Listopad. Burza trwa od trzech godzin, a most do miasteczka właśnie odpłynął. Henryk Wolański, 91 lat, fabrykant guzików i tyran trzech pokoleń, zaprosił całą rodzinę na kolację. Po deserze zasnął twarzą w serniku. Tym razem na zawsze.',
-  'Nazywam się Wiesław Pióro, jestem notariuszem rodziny. Testament odczytam o świcie, punktualnie o czwartej. Majątek podzielę między tych, którzy wtedy będą siedzieć przy tym stole.',
-  'Lekarz mówi, że to serce. Ja mówię, że serniki nie zabijają same. Proszę teraz zajrzeć do telefonów. Dyskretnie.',
-];
+const DAYS_WORD: Record<number, string> = { 4: 'cztery', 6: 'sześć' };
+
+/** Wstęp na kolacji. Gra trwa tyle dni, ile naprawa mostu; testament jest o świcie po ostatnim dniu. */
+export function introFor(days: number): string[] {
+  const n = DAYS_WORD[days] ?? String(days);
+  return [
+    'Listopad. Burza trwa od trzech godzin, a most do miasteczka właśnie odpłynął. Henryk Wolański, 91 lat, fabrykant guzików i tyran trzech pokoleń, zaprosił całą rodzinę na kolację. Po deserze zasnął twarzą w serniku. Tym razem na zawsze.',
+    `Nazywam się Wiesław Pióro, jestem notariuszem rodziny. Most naprawią za ${n} dni i wtedy, o świcie, odczytam testament. Majątek podzielę między tych, którzy będą wtedy siedzieć przy tym stole.`,
+    'Lekarz mówi, że to serce. Ja mówię, że serniki nie zabijają same. Proszę teraz zajrzeć do telefonów. Dyskretnie.',
+  ];
+}

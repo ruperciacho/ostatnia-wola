@@ -1,6 +1,6 @@
 // Silnik gry „Ostatnia wola”: czyste funkcje na stanie gry (bez sieci i bazy).
 import {
-  ATTRS, CATEGORIES, CHARACTERS, INTRO, ROLES, ROOMS, SERVANTS,
+  ATTRS, CATEGORIES, CHARACTERS, ROLES, ROOMS, SERVANTS, introFor,
   roleDistribution,
 } from './data.ts';
 import type { Category, Character, RoleId } from './data.ts';
@@ -73,7 +73,7 @@ export interface Game {
   morning: { lines: string[]; clues: string[] } | null;
   votes: Record<string, string>;
   verdict: { text: string; lines: string[] } | null;
-  /** Osoba zamknięta w ostatnim głosowaniu; rozliczenie po godzinie. */
+  /** Osoba zamknięta w ostatnim głosowaniu; rozliczenie przy głosowaniu następnego dnia. */
   jail: Jail | null;
   voteLog: VoteRecord[];
   pendingWinner: 'rodzina' | null;
@@ -137,9 +137,18 @@ function npcFemale(id: string): boolean {
   return !!charById(id)?.f;
 }
 
-export function hourLabel(g: Game, hour: number): string {
-  const h = (((4 - g.hours + hour - 1) % 24) + 24) % 24;
-  return (h < 10 ? '0' : '') + h + ':00';
+// Gra trwa kilka dni (g.hour to numer dnia). Każdy dzień zaczyna się nocą, testament jest o świcie po ostatnim dniu.
+export function hourLabel(_g: Game, day: number): string {
+  return `Dzień ${day}`;
+}
+function nightLabel(day: number): string {
+  return `Noc ${day}`;
+}
+/** Ile dni zostało do odczytania testamentu, licząc od poranka tego dnia. */
+function countdown(g: Game, day: number): string {
+  const left = g.hours - day + 1;
+  if (left <= 1) return `Dzień ${day}, ostatni. Testament jutro o świcie.`;
+  return `Dzień ${day}. Do odczytania testamentu ${left <= 4 ? 'zostały' : 'zostało'} ${left} dni.`;
 }
 
 function duration(g: Game, phase: Phase): number | null {
@@ -270,7 +279,7 @@ function nextPhase(g: Game, ctx: Ctx) {
       return;
     case 'morning': {
       if (g.settings.death) {
-        // Niewinni w areszcie wrócą za godzinę, więc liczą się jako goście przy stole
+        // Niewinni w areszcie wrócą jutro, więc liczą się jako goście przy stole
         const killers = freeKillers(g).length;
         const others = g.players.filter((p) => p.status !== 'dead' && p.role !== 'zabojca').length;
         if (killers > 0 && killers >= others) {
@@ -290,7 +299,7 @@ function nextPhase(g: Game, ctx: Ctx) {
       return;
     case 'verdict':
       if (g.pendingWinner === 'rodzina') {
-        finish(g, 'rodzina', 'Ostatni zabójca trafił do aresztu przed świtem.', ctx);
+        finish(g, 'rodzina', 'Ostatni zabójca trafił do aresztu przed odczytaniem testamentu.', ctx);
         return;
       }
       if (g.hour < g.hours) {
@@ -373,7 +382,6 @@ function fragment(subject: Character, label: string, cats: Category[], rng: () =
 function resolveNight(g: Game, ctx: Ctx) {
   const { rng } = ctx;
   const hour = g.hour;
-  const clock = hourLabel(g, hour);
   const act = active(g);
   const roomOf: Record<string, string> = {};
   const followers = act.filter((p) => followsTarget(g, p));
@@ -412,7 +420,7 @@ function resolveNight(g: Game, ctx: Ctx) {
     executor = pick(killers, rng);
   }
 
-  const lines: string[] = [`Godzina ${clock}.`];
+  const lines: string[] = [countdown(g, hour)];
   const logEntry: HourLog = { hour, rooms: { ...roomOf } };
   let attackRoom: string | null = null;
   let attacked = false;
@@ -584,7 +592,7 @@ function tally(g: Game, voters: Player[]) {
 }
 
 /**
- * Rozliczenie aresztu po godzinie. Zabójca zostaje; każdy inny wychodzi.
+ * Rozliczenie aresztu przy głosowaniu następnego dnia. Zabójca zostaje; każdy inny wychodzi.
  * Głos na zabójcę: +2. Głos na niewinnego: -1, a zabójca lub złodziej dostaje za to +1 (machlojka).
  * Złapany złodziej oddaje łupy, a głosujący na niego dostają +1.
  */
@@ -626,7 +634,7 @@ function settleJail(g: Game, final: boolean): string[] {
 }
 
 function resolveAccusation(g: Game) {
-  // Najpierw rozliczamy areszt z poprzedniej godziny
+  // Najpierw rozliczamy areszt z poprzedniego dnia
   const lines = settleJail(g, false);
   const voters = active(g);
   const { counts, cast, top, leaders } = tally(g, voters);
@@ -641,13 +649,16 @@ function resolveAccusation(g: Game) {
     record.arrestedId = target.id;
     if (entry) entry.arrestedId = target.id;
     g.jail = { playerId: target.id, hour: g.hour, voters: voters.filter((v) => g.votes[v.id] === target.id).map((v) => v.id) };
-    note(target, g.hour, `${gf(target, 'Trafiłeś', 'Trafiłaś')} do aresztu. Grasz dalej w mini-gry, ale nie wybierasz pokoju i nie głosujesz. Jeśli nie jesteś zabójcą, wyjdziesz za godzinę.`, 'info');
+    const lastDay = g.hour >= g.hours;
+    note(target, g.hour, `${gf(target, 'Trafiłeś', 'Trafiłaś')} do aresztu. Grasz dalej w mini-gry, ale nie wybierasz pokoju i nie głosujesz.${lastDay ? '' : ' Jeśli nie jesteś zabójcą, wyjdziesz jutro po głosowaniu.'}`, 'info');
     if (target.role === 'blazen') target.jesterWin = true;
     if (freeKillers(g).length === 0) {
       g.pendingWinner = 'rodzina';
       text = `${who(target)} trafia do aresztu. To był ostatni zabójca na wolności!`;
     } else {
-      text = `${who(target)} trafia do aresztu. Jeśli to nie zabójca, wyjdzie za godzinę, a głosujący stracą po 1 punkcie.`;
+      text = lastDay
+        ? `${who(target)} trafia do aresztu. Jeśli to nie zabójca, głosujący stracą po 1 punkcie.`
+        : `${who(target)} trafia do aresztu. Jeśli to nie zabójca, wyjdzie jutro po głosowaniu, a głosujący stracą po 1 punkcie.`;
     }
   } else {
     text = leaders.length > 1 && top > 0 ? 'Remis w głosowaniu. Nikt nie trafia do aresztu.' : 'Nikt nie trafia do aresztu.';
@@ -832,7 +843,7 @@ export function applyAction(g: Game, playerId: string | null, a: Action, ctx: Ct
       if (g.phase === 'accusation') {
         if (me.status !== 'active') return { error: 'Aresztanci i duchy głosują dopiero o świcie.' };
         if (a.target === 'none') {
-          if (g.hour === g.hours && hasVoteTarget(g, me)) return { error: 'Kogut pieje: w ostatniej godzinie trzeba kogoś wskazać.' };
+          if (g.hour === g.hours && hasVoteTarget(g, me)) return { error: 'Jutro testament: dziś trzeba kogoś wskazać.' };
         } else {
           const t = player(g, a.target);
           if (!t || t.status !== 'active' || t.id === me.id) return { error: 'Nie można oskarżyć tej osoby.' };
@@ -918,7 +929,7 @@ function voteView(g: Game, rec: VoteRecord) {
     .map(([to, voters]) => { const t = player(g, to); return { target: t ? who(t) : '?', voters }; })
     .sort((a, b) => b.voters.length - a.voters.length);
   const arrested = rec.arrestedId ? player(g, rec.arrestedId) : undefined;
-  return { clock: hourLabel(g, rec.hour), kind: rec.kind, rows, none, arrested: arrested ? who(arrested) : null };
+  return { clock: rec.kind === 'dawn' ? 'Dzień testamentu' : hourLabel(g, rec.hour), kind: rec.kind, rows, none, arrested: arrested ? who(arrested) : null };
 }
 
 export function publicView(g: Game, now: number) {
@@ -933,7 +944,7 @@ export function publicView(g: Game, now: number) {
     serverNow: now,
     settings: g.settings,
     hostId: g.hostId,
-    intro: INTRO,
+    intro: introFor(g.hours),
     players: g.players.map((p) => ({
       id: p.id, name: p.name, status: p.status, ready: p.ready,
       waiting: mustAct(g, p) && !actDone(g, p),
@@ -944,7 +955,7 @@ export function publicView(g: Game, now: number) {
       ? { done: g.players.filter((p) => nightDone(g, p)).length, total: g.players.length }
       : null,
     morning: g.morning,
-    publicClues: g.publicClues.map((c) => ({ hour: c.hour, clock: hourLabel(g, c.hour), text: c.text, source: c.source, fake: ended ? c.fake : undefined })),
+    publicClues: g.publicClues.map((c) => ({ hour: c.hour, clock: nightLabel(c.hour), text: c.text, source: c.source, fake: ended ? c.fake : undefined })),
     heirloomsLeft: Object.values(g.heirlooms).filter(Boolean).length,
     ghostProgress: g.ghostProgress,
     voting: g.phase === 'accusation' || g.phase === 'dawn'
@@ -980,7 +991,7 @@ function endReveal(g: Game) {
       }))
       .sort((a, b) => b.points - a.points),
     reconstruction: g.log.map((l) => ({
-      clock: hourLabel(g, l.hour),
+      clock: nightLabel(l.hour),
       rooms: Object.entries(l.rooms).map(([pid, room]) => `${name(pid)}: ${roomById(room)?.name}`),
       executor: name(l.executorId),
       victim: l.victim ? `${l.victim.name} (${roomById(l.victim.room)?.name})` : null,

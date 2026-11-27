@@ -352,13 +352,21 @@
     }).catch(function () { toast('Brak połączenia z serwerem.'); });
   }
 
+  // Gra trwa kilka dni: każdy dzień zaczyna się nocą, a o świcie po ostatnim dniu notariusz czyta testament
+  function phaseTitle(v) {
+    var name = PHASE_LABEL[v.phase] || '';
+    if (v.phase === 'night') return name + ' ' + v.hour + ' z ' + v.hours;
+    if (v.phase === 'dawn') return name + ' · dzień testamentu';
+    if (['morning', 'discussion', 'accusation', 'verdict'].indexOf(v.phase) >= 0) return name + ' · dzień ' + v.hour + ' z ' + v.hours;
+    return name;
+  }
+
   function renderScreen(v) {
     if (v.phase !== lastScreenPhase) {
       if (v.phase === 'morning' || v.phase === 'verdict' || v.phase === 'end') gong();
       lastScreenPhase = v.phase;
     }
-    var label = PHASE_LABEL[v.phase] || '';
-    if (v.clock && v.phase !== 'end') label += ' · godzina ' + v.clock;
+    var label = phaseTitle(v);
     $('s-label').textContent = label;
     $('btn-new-room').hidden = !(v.phase === 'lobby' || v.phase === 'end');
 
@@ -380,7 +388,7 @@
 
     if (v.phase === 'lobby') {
       var n = v.players.length;
-      var settings = 'Tryb: ' + (v.settings.mode === '30' ? 'ok. 30 min (4 rundy)' : 'ok. 1 h (6 rund)') +
+      var settings = 'Tryb: ' + (v.settings.mode === '30' ? 'ok. 30 min (4 dni w grze)' : 'ok. 1 h (6 dni w grze)') +
         ' · śmierć graczy: ' + (v.settings.death ? 'włączona' : 'wyłączona') +
         ' · tempo: ' + (v.settings.calm ? 'spokojne' : 'normalne');
       html = '<div class="lobby-grid"><div id="qr"></div><div class="stack">' +
@@ -407,7 +415,7 @@
         '<div class="mini-gallery wide">' + v.players.map(miniCard).join('') + '</div></div>';
     } else if (v.phase === 'night') {
       html = '<div class="stack center" style="padding-top:6vh"><h2 class="huge gold">Gasną światła</h2>' +
-        '<p class="big-text">Godzina ' + esc(v.clock) + '. Wybierzcie na telefonach pokój i zagrajcie w mini-grę.<br>Nie zaglądajcie sobie w ekrany.</p>' +
+        '<p class="big-text">Noc ' + v.hour + '. Wybierzcie na telefonach pokój i zagrajcie w mini-grę.<br>Nie zaglądajcie sobie w ekrany.</p>' +
         '<p class="huge">' + v.night.done + ' / ' + v.night.total + '</p><p class="muted">skończyło noc</p></div>';
     } else if (v.phase === 'morning') {
       html = '<div class="stack">' + (v.morning ? v.morning.lines.map(function (l, i) { return '<p class="' + (i === 0 ? 'muted' : 'big-text') + '">' + esc(l) + '</p>'; }).join('') : '') +
@@ -417,17 +425,19 @@
       html = board(v, 'Narada. Porównajcie poszlaki i alibi, część może być podrzucona. Gotowi do głosowania: ' + waitLine(v) + '.');
     } else if (v.phase === 'accusation') {
       html = board(v, 'Oskarżenie! Głosujcie na telefonach. Głosy: ' + waitLine(v) +
-        (v.voting.lastHour ? '. Kogut pieje: tym razem trzeba kogoś wskazać.' : '.'));
+        (v.voting.lastHour ? '. Jutro testament: tym razem trzeba kogoś wskazać.' : '.'));
     } else if (v.phase === 'verdict') {
       var vd = v.verdict || { text: '', lines: [] };
       html = '<div class="stack"><h2 class="huge gold">Werdykt</h2>' +
         (vd.lines || []).map(function (l) { return '<p class="big-text">' + esc(l) + '</p>'; }).join('') +
         '<p class="big-text"><b>' + esc(vd.text) + '</b></p>' +
         '<div class="verdict-tv"><div class="panel stack"><h2 class="gold">Kto na kogo głosował</h2>' + votesHtml(lastVote(v, 'accusation')) + '</div>' +
-        '<div class="panel stack"><h2 class="gold">Co dalej</h2><p>Zabójca zostaje w areszcie do końca. Niewinny wychodzi po godzinie, a każdy, kto na niego głosował, traci 1 punkt (zabójca i złodziej dostają +1 za machlojkę).</p></div></div>' +
+        '<div class="panel stack"><h2 class="gold">Co dalej</h2><p>' + (v.hour >= v.hours
+          ? 'Ostatnia noc mija bez snu. O świcie, zanim notariusz otworzy testament, głosują wszyscy, także aresztowani i duchy.'
+          : 'Zabójca zostaje w areszcie do końca. Niewinny wychodzi jutro po głosowaniu, a każdy, kto na niego głosował, traci 1 punkt (zabójca i złodziej dostają +1 za machlojkę).') + '</p></div></div>' +
         '<p class="muted">Kliknijcie „Dalej” na telefonach: ' + waitLine(v) + '</p></div>';
     } else if (v.phase === 'dawn') {
-      html = board(v, 'Świt. Ostateczne oskarżenie: głosują wszyscy, także aresztowani i duchy. Głosy: ' + waitLine(v) + '.');
+      html = board(v, 'Świt. Zanim notariusz otworzy testament, ostatnie oskarżenie: głosują wszyscy, także aresztowani i duchy. Głosy: ' + waitLine(v) + '.');
     } else if (v.phase === 'end' && v.result) {
       html = endScreen(v);
     }
@@ -467,7 +477,7 @@
       '<div class="mini-gallery' + (v.players.length > 8 ? ' tight' : '') + '">' + gallery + '</div></div></div>';
   }
 
-  // Zwięzłe wiersze dowodów na ekran TV: godzina w kolumnie, tekst w jednej linii
+  // Zwięzłe wiersze dowodów na ekran TV: noc w kolumnie, tekst w jednej linii
   function clueRows(clues) {
     if (!clues.length) return '<p class="muted">Na razie brak poszlak.</p>';
     return clues.slice().reverse().map(function (c) {
@@ -576,7 +586,7 @@
     try { call({ op: 'log', code: G.code, log: info }).catch(function () {}); } catch (e) { /* ignore */ }
   }
 
-  // Klucz ekranu: zmienia się, gdy telefon musi pokazać coś nowego (faza, godzina, krok nocy, „gotowe”)
+  // Klucz ekranu: zmienia się, gdy telefon musi pokazać coś nowego (faza, dzień, krok nocy, „gotowe”)
   function phoneKeyFor(v) {
     var key = v.phase + ':' + v.hour;
     if (v.phase === 'night') key += ':' + nightStep(v);
@@ -613,7 +623,7 @@
 
   function renderPhoneInner(v) {
     var me = v.me;
-    $('p-label').textContent = PHASE_LABEL[v.phase] + (v.clock && v.phase !== 'end' ? ' ' + v.clock : '');
+    $('p-label').textContent = phaseTitle(v);
     $('p-sub').textContent = 'Pokój ' + v.code + (me ? ' · ' + me.name + (me.isHost ? ' (host)' : '') : '');
     $('p-tabs').hidden = !me || v.phase === 'lobby';
     if (!me && v.phase === 'lobby') { phoneKey = 'join'; if ($('p-now').getAttribute('data-key') !== 'join') renderJoin(v); return; }
@@ -704,8 +714,8 @@
       var s = v.settings;
       html += '<div class="panel stack"><h2 class="gold">Ustawienia (host)</h2>' +
         '<p class="muted">Długość</p><div class="grid2">' +
-        '<button data-set="mode" data-val="30" class="' + (s.mode === '30' ? 'chosen' : 'secondary') + '">ok. 30 min (4 rundy)</button>' +
-        '<button data-set="mode" data-val="60" class="' + (s.mode === '60' ? 'chosen' : 'secondary') + '">ok. 1 h (6 rund)</button></div>' +
+        '<button data-set="mode" data-val="30" class="' + (s.mode === '30' ? 'chosen' : 'secondary') + '">ok. 30 min (4 dni w grze)</button>' +
+        '<button data-set="mode" data-val="60" class="' + (s.mode === '60' ? 'chosen' : 'secondary') + '">ok. 1 h (6 dni w grze)</button></div>' +
         '<p class="muted">Śmierć graczy' + (n < 5 ? ' (od 5 graczy)' : '') + '</p><div class="grid2">' +
         '<button data-set="death" data-val="0" class="' + (!s.death ? 'chosen' : 'secondary') + '">Wyłączona</button>' +
         '<button data-set="death" data-val="1" class="' + (s.death ? 'chosen' : 'secondary') + '"' + (n < 5 ? ' disabled' : '') + '>Włączona</button></div>' +
@@ -824,14 +834,14 @@
     var thief = hasRole(setup, 'zlodziej');
     var hour = [
       'Noc (' + nightMin(setup) + '): na telefonie wybierasz pokój i grasz w mini-grę. Udana mini-gra: +1 punkt i poszlaka. ' +
-        (short ? 'Pomyłki zabierają serca. Z każdą godziną gry są trudniejsze.' : 'Każda pomyłka zabiera serce. Bez serc, po rezygnacji albo po czasie nic nie dostajesz. Z każdą godziną mini-gry są trudniejsze. Kto nie wybierze pokoju do końca nocy, dostaje losowy.'),
+        (short ? 'Pomyłki zabierają serca. Im bliżej testamentu, tym trudniej.' : 'Każda pomyłka zabiera serce. Bez serc, po rezygnacji albo po czasie nic nie dostajesz. Im bliżej testamentu, tym trudniejsze mini-gry. Kto nie wybierze pokoju do końca nocy, dostaje losowy.'),
       'Poranek: co się stało w nocy i nowe poszlaki. Kliknij „Przeczytane”.',
       'Narada: rozmawiacie przy stole. Kto chce przejść do głosowania, klika „Chcę głosować”.',
       'Oskarżenie: głosujecie na telefonach. Ponad połowa głosów = areszt.',
       'Werdykt: wszyscy widzą, kto na kogo głosował. Kliknij „Dalej”.'
     ];
     var jail = [
-      'Zabójca w areszcie zostaje tam do końca. Każdy inny wychodzi po godzinie.',
+      'Zabójca w areszcie zostaje tam do końca. Każdy inny wychodzi następnego dnia po głosowaniu.',
       'Głos na osobę, która niesłusznie trafiła do aresztu: −1 punkt. Zabójca i złodziej dostają za to +1 (machlojka).',
       'W areszcie grasz w mini-gry, ale nie wybierasz pokoju i głosujesz dopiero o świcie.'
     ];
@@ -875,7 +885,7 @@
       '<div class="rules-tv">' +
       '<div class="panel stack"><h2 class="gold">Role w tej grze</h2><ul>' + roles + '</ul>' +
       '<p class="muted">Rodzina wygrywa, gdy złapie wszystkich zabójców. Zabójcy, gdy o świcie choć jeden jest na wolności.</p></div>' +
-      '<div class="panel stack"><h2 class="gold">Jedna godzina (' + st.hours + ' godzin do świtu)</h2><ol>' + d.hour.map(li).join('') + '</ol>' +
+      '<div class="panel stack"><h2 class="gold">Jeden dzień (' + st.hours + ' dni do testamentu)</h2><ol>' + d.hour.map(li).join('') + '</ol>' +
       '<p class="muted">O świcie ostatnie głosowanie: głosują wszyscy, także aresztanci' + (st.death ? ' i duchy' : '') + '.</p></div>' +
       '<div class="panel stack"><h2 class="gold">Areszt i rozmowy</h2><ul>' + d.jail.slice(0, 2).map(li).join('') + '</ul>' +
       '<p class="slogan">„Gadajcie, umawiajcie się, kłamcie. Telefonu nikomu nie pokazujecie. W grupie bezpieczniej, ale nie wiecie, kto w niej jest.”</p>' +
@@ -887,7 +897,7 @@
     var d = rulesData(st, false);
     var li = function (t) { return '<li>' + esc(t) + '</li>'; };
     return '<div class="panel stack rules"><p>W tej grze: ' + esc(roleCountsText(st)) + '.</p>' +
-      '<h3>Jedna godzina</h3><ol>' + d.hour.map(li).join('') + '</ol><h3>Areszt</h3><ul>' + d.jail.map(li).join('') + '</ul>' +
+      '<h3>Jeden dzień</h3><ol>' + d.hour.map(li).join('') + '</ol><h3>Areszt</h3><ul>' + d.jail.map(li).join('') + '</ul>' +
       '<h3>Rozmowy</h3><ul>' + d.talk.map(li).join('') + '</ul><h3>Punkty</h3><ul>' + d.points.map(li).join('') + '</ul></div>';
   }
 
@@ -900,10 +910,10 @@
       return '<li class="role-line"><b>' + r.count + '× ' + esc(r.name) + '</b>: ' + esc(r.does) + ' ' + esc(r.wins) + '</li>';
     }).join('');
     var html = '<div class="panel stack rules"><h2 class="gold">Zasady tej gry</h2>' +
-      '<p>Graczy: ' + st.players + '. Godzin do świtu: ' + st.hours + '. Swoją rolę poznasz zaraz po tym ekranie.</p>' +
+      '<p>Graczy: ' + st.players + '. Dni do odczytania testamentu: ' + st.hours + '. Swoją rolę poznasz zaraz po tym ekranie.</p>' +
       '<h3>Role w tej grze</h3><ul>' + roles + '</ul>' +
-      '<h3>Jedna godzina gry</h3><ol>' + d.hour.map(li).join('') + '</ol>' +
-      '<p>Po ' + st.hours + ' godzinach przychodzi świt: ostatnie głosowanie, w którym głosują wszyscy. Jeśli wskażecie zabójcę, wygrywa rodzina.</p>' +
+      '<h3>Jeden dzień gry</h3><ol>' + d.hour.map(li).join('') + '</ol>' +
+      '<p>Po ' + st.hours + ' dniach, o świcie, notariusz czyta testament. Wcześniej jest ostatnie głosowanie, w którym głosują wszyscy. Jeśli wskażecie zabójcę, wygrywa rodzina.</p>' +
       '<h3>Areszt, duchy, poszlaki</h3><ul>' + d.jail.map(li).join('') + '</ul>' +
       '<h3>Rozmowy</h3><ul>' + d.talk.map(li).join('') + '</ul>' +
       '<h3>Punkty</h3><ul>' + d.points.map(li).join('') + '</ul>' +
@@ -936,7 +946,7 @@
       }
       case 'morning': return 'Przeczytaj, co się stało, i swoje nowe poszlaki (są też w zakładce Notes). Potem „Przeczytane”.';
       case 'discussion':
-        if (me.status === 'arrested') return 'W areszcie możesz mówić, ale nie głosujesz. Jeśli nie jesteś zabójcą, wyjdziesz po godzinie.';
+        if (me.status === 'arrested') return 'W areszcie możesz mówić, ale nie głosujesz. Jeśli nie jesteś zabójcą, wyjdziesz jutro po głosowaniu.';
         if (me.status === 'dead') return 'Jako duch możesz mówić, ale głosujesz dopiero o świcie.';
         return 'Rozmawiajcie: mówcie prawdę albo kłamcie. Kiedy chcesz przejść do głosowania, kliknij „Chcę głosować”.';
       case 'accusation':
@@ -990,7 +1000,7 @@
   function renderNightChoose(v) {
     var n = v.me.night;
     var sel = { room: n.choice.room, target: n.choice.target, watch: n.choice.watch };
-    var html = '<div class="stack"><h2 class="gold">Noc, godzina ' + esc(v.clock) + '</h2>';
+    var html = '<div class="stack"><h2 class="gold">Noc ' + v.hour + '</h2>';
     if (!n.follows) {
       html += '<p class="muted">Gdzie spędzasz noc? W tym pokoju zagrasz w mini-grę.</p><div class="grid2" data-group="room">' +
         ROOMS.map(function (r) { return '<button class="secondary" data-val="' + r.id + '">' + esc(r.name) + '</button>'; }).join('') + '</div>';
@@ -1246,7 +1256,7 @@
   };
 
   // ---------- mini-gry ----------
-  // Pula 12 mini-gier. Gra jest losowana dla gracza i godziny (stała po odświeżeniu strony),
+  // Pula 12 mini-gier. Gra jest losowana dla gracza i dnia (stała po odświeżeniu strony),
   // więc w tym samym pokoju co noc trafia się coś innego. Treść (tytuł, przedmioty) bierze się z motywu pokoju.
   var GAMES = ['books', 'years', 'timing', 'sequence', 'math', 'simon', 'odd', 'count', 'pairs', 'find', 'pattern', 'ghost'];
 
@@ -1727,7 +1737,7 @@
   function renderMorning(v) {
     var me = v.me;
     var mine = me.notes.filter(function (n) { return n.clock === v.clock; });
-    var html = '<div class="panel stack"><h2 class="gold">Poranek ' + esc(v.clock) + '</h2>' +
+    var html = '<div class="panel stack"><h2 class="gold">Poranek, dzień ' + v.hour + '</h2>' +
       (v.morning ? v.morning.lines.slice(1).map(function (l) { return '<p>' + esc(l) + '</p>'; }).join('') : '') + '</div>' +
       '<div class="stack"><h2 class="gold">Twoje nowe poszlaki</h2>' +
       (mine.length ? mine.map(function (n) { return '<div class="note' + (n.kind === 'info' ? ' info' : '') + '">' + esc(n.text) + '</div>'; }).join('') : '<p class="muted">Tej nocy nic nowego.</p>') + '</div>' +

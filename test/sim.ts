@@ -123,7 +123,7 @@ function simulate(seed: number, n: number, death: boolean, mode: '30' | '60', st
   for (const l of g.log) if (l.executorId && l.victim?.playerId) check(l.rooms[l.victim.playerId] === l.victim.room, `${label}: victim room matches log`);
   // Punkty zgadzają się z listą powodów
   for (const p of g.players) check(p.points === p.pointsLog.reduce((a, e) => a + e.pts, 0), `${label}: points match log`);
-  // Niewinny siedzi w areszcie najwyżej godzinę: na koniec w areszcie tylko zabójcy albo zamknięci w ostatniej godzinie
+  // Niewinny siedzi w areszcie najwyżej do głosowania następnego dnia: na koniec w areszcie tylko zabójcy albo zamknięci w ostatnim dniu
   for (const p of g.players) {
     if (p.status !== 'arrested' || p.role === 'zabojca') continue;
     check(g.voteLog.some((r) => r.kind === 'accusation' && r.arrestedId === p.id && r.hour >= g.hour - 1), `${label}: innocent released after an hour`);
@@ -156,7 +156,7 @@ for (const style of ['random', 'idle', 'smart'] as const) {
 // Kilka linii statystyk dla stylu „smart” (rodzina celnie głosuje częściej niż losowo)
 for (const [k, s] of Object.entries(stats)) {
   if (!k.startsWith('smart') || !k.includes('30min')) continue;
-  console.log(`${k}: rodzina ${Math.round((100 * s.rodzina) / s.games)}%, śr. godzin ${(s.hours / s.games).toFixed(1)}`);
+  console.log(`${k}: rodzina ${Math.round((100 * s.rodzina) / s.games)}%, śr. dni ${(s.hours / s.games).toFixed(1)}`);
 }
 console.log(failures ? `\n${failures} FAILURES` : '\nOK: wszystkie symulacje przeszły');
 process.exit(failures ? 1 : 0);
